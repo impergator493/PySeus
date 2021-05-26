@@ -7,6 +7,7 @@ Classes
 **LoadError** - Exception for various errors during loading.
 """
 
+from abc import abstractmethod
 import numpy
 
 
@@ -41,17 +42,20 @@ class BaseFormat():
         otherwise return False.
 
         Custom formats have to override this function."""
+        raise NotImplementedError
 
+    @abstractmethod
     def load(self, path):
         """Attempt to load the file at *path*. Return True on success or
         throw an exception."""
+        raise NotImplementedError
 
     def load_scan(self, scan):
         """Load pixeldata and metadata from the scan with the ID *scan*.
         Set self.scan to the scan ID on success or throw an exception.
         Uses *get_scan_pixeldata* and *get_scan_metadata*.
 
-        Custom formats have to override either this function or
+        Custom formats have to override 
         *get_scan_pixeldata* and *get_scan_metadata*.
         """
 
@@ -64,21 +68,25 @@ class BaseFormat():
         else:
             return True
 
+    @abstractmethod
     def get_scan_pixeldata(self, scan):  # pylint: disable=R0201,W0613
         """Collect and return the pixeldata from the scan *scan*.
 
-        Custom formats have to override either this function and
-        *get_scan_metadata* or reimplement *load_scan*.
+        Custom formats have to override  this function and
+        *get_scan_metadata* .
         """
 
-        return []
+        # return []
+        return self.pixeldata
 
+    @abstractmethod
     def get_scan_metadata(self, scan):  # pylint: disable=R0201,W0613
         """Collect and return the metadata from the scan *scan*.
 
-        Custom formats have to override either this function and
-        *get_scan_pixeldata* or reimplement *load_scan*.
+        Custom formats have to override  this function and
+        *get_scan_pixeldata*.
         """
+        raise NotImplementedError
 
         return {}
 

@@ -10,14 +10,22 @@ import sys
 import webbrowser
 from functools import partial
 import os
+from PySide2 import QtWidgets
+from PySide2.QtCore import QLine
 
-from PySide2.QtWidgets import QMainWindow, QAction, QLabel, QFileDialog, \
-                              QFrame, QVBoxLayout, QHBoxLayout
+from PySide2.QtWidgets import QButtonGroup, QDialog, QDialogButtonBox, QFormLayout, QLineEdit, QMainWindow, QAction, QLabel, QFileDialog, \
+                              QFrame, QPushButton, QRadioButton, QVBoxLayout, QHBoxLayout, QWidget
 from PySide2.QtGui import QIcon
 
 from .view import ViewWidget
 from .sidebar import ConsoleWidget, InfoWidget, MetaWidget
 from .thumbs import ThumbsWidget
+
+from pyseus.denoising.tv import TV
+import scipy.io
+import matplotlib.pyplot as plt
+
+
 
 
 class MainWindow(QMainWindow):  # pylint: disable=R0902
@@ -85,6 +93,7 @@ class MainWindow(QMainWindow):  # pylint: disable=R0902
         geometry = self.app.qt_app.desktop().availableGeometry(self)
         self.resize(geometry.width() * 0.6, geometry.height() * 0.6)
 
+
     def add_menu_item(self, menu, title, callback, shortcut=""):
         """Create a menu item."""
         action = QAction(title, self)
@@ -110,7 +119,7 @@ class MainWindow(QMainWindow):  # pylint: disable=R0902
         for mode in self.app.modes:
             mode.setup_menu(self.app, self.view_menu, self.add_menu_item)
         self.view_menu.addSeparator()
-
+        
         ami(self.view_menu, "Zoom &in", self._action_zoom_in, "+")
         ami(self.view_menu, "Zoom &out", self._action_zoom_out, "-")
         ami(self.view_menu, "Zoom to &fit", self._action_zoom_fit, "#")
@@ -160,6 +169,15 @@ class MainWindow(QMainWindow):  # pylint: disable=R0902
             tool.setup_menu(self.app, self.tools_menu, self.add_menu_item)
         self.tools_menu.addSeparator()
         ami(self.tools_menu, "&Clear RoI", self._action_tool_clear, "Esc")
+
+        self.denoise_menu = menu_bar.addMenu("&Denoise")
+        ami(self.denoise_menu, "TV",
+            self._open_dialog_tv, "---")
+        ami(self.denoise_menu, "TGV",
+            print('test'), "---")
+        ami(self.denoise_menu, "H1",
+            print('test'), "---")
+
 
         # About action is its own top level menu
         ami(menu_bar, "&About", self._action_about)
@@ -243,6 +261,135 @@ class MainWindow(QMainWindow):  # pylint: disable=R0902
 
     def _action_cine(self):
         self.app.toggle_cine()
+
+    def _open_dialog_tv(self):
+    
+        self.alpha = 0
+        self.lambd = 0
+        self.iter = 0
+        
+
+        dialog = QDialog()
+        vlayout = QVBoxLayout()
+        hlayout = QHBoxLayout()
+        dialog.setWindowTitle("Denoise")
+        
+        data_selection = QLabel("Data Selection")
+        slice_group = QButtonGroup()
+        curr_slice = QRadioButton("Current Slice")
+        curr_slice.setChecked(True)
+        whole_dataset = QRadioButton("Whole Dataset")
+        slice_group.addButton(curr_slice)
+        slice_group.addButton(whole_dataset)
+        whole_dataset_2D = QRadioButton("2D")
+        whole_dataset_3D = QRadioButton("3D")
+
+        # subgroup of radio buttons to dataset selection
+        denoise_type = QLabel("Denoising Type")
+
+        tv_group = QButtonGroup()
+        tv_L1 = QRadioButton("L1")
+        tv_L2 = QRadioButton("L2")
+        tv_ROF = QRadioButton("HuberROF")
+        tv_group.addButton(tv_L1)
+        tv_group.addButton(tv_L2)
+        tv_group.addButton(tv_ROF)
+
+
+        form = QFormLayout()
+        self.qline_lambd = QLineEdit()
+        #TV_lambda.setStyleSheet("color: white; background-color: darkgray")
+        form.addRow("Lambda",self.qline_lambd)
+        self.qline_iter = QLineEdit()
+        #TV_iter.setStyleSheet("color: white; background-color: darkgray")
+        form.addRow("Iterations",self.qline_iter)
+        self.qline_alpha = QLineEdit()
+        #TV_alpha.setStyleSheet("color: white; background-color: darkgray")
+        form.addRow("Alpha",self.qline_alpha)
+
+        
+
+        btns = QDialogButtonBox()
+        btns.setStandardButtons(QDialogButtonBox.Cancel | QDialogButtonBox.Ok)
+        btns.accepted.connect(self.signal_ok)
+        btns.rejected.connect(lambda:dialog.close())
+   
+        
+
+        vlayout.addWidget(data_selection)
+        vlayout.addWidget(curr_slice)
+        vlayout.addWidget(whole_dataset)
+        vlayout.addWidget(denoise_type)
+        vlayout.addWidget(tv_L1)
+        vlayout.addWidget(tv_L2)
+        vlayout.addWidget(tv_ROF)
+        vlayout.addWidget(btns)
+
+        hlayout.addLayout(vlayout)
+        hlayout.addLayout(form)
+        
+        dialog.setLayout(hlayout)
+        #dialog.setStyleSheet('color: white')
+        dialog.setStyleSheet("QLineEdit"
+                                "{"
+                                "color: white; background : darkgray;"
+                                "}" 
+                            "QLabel"
+                                "{"
+                                "color: white;"
+                                "}"
+                            "QRadioButton"
+                                "{"
+                                "color: white;"
+                                "}"
+                            )
+        dialog.exec_()
+
+    def signal_ok(self):
+        self.alpha = float(self.qline_alpha.text())
+        self.lambd = float(self.qline_lambd.text())
+        self.iter = int(self.qline_iter.text())  
+
+        
+        
+        noisy = scipy.io.loadmat('./tests/cameraman_noise.mat')['im']
+        denoise = TV()
+        denoised_L2 = denoise.tv_denoising_L2(noisy,self.lambd,self.iter)
+
+        plt.figure(figsize=(16,10))
+        plt.subplot(121)
+        plt.imshow(noisy, cmap=plt.cm.gray)
+        plt.axis('off')
+        plt.title('noisy', fontsize=20)
+        plt.subplot(122)
+        plt.imshow(denoised_L2, cmap=plt.cm.gray)
+        plt.axis('off')
+        plt.title('denoised', fontsize=20) 
+
+        plt.get_current_fig_manager().window.showMaximized()
+        plt.show()
+
+
+    #def signal_cancel(self, dialog_object):
+        
+        #dialog_object.close()
+
+
+
+# class DialogDenoise(QDialog):
+
+#   def __init__(self, parent = None):
+#       super(DialogDenoise, self).__init__(parent)
+
+#       create Widgets, order them in Layout, connect signal to slots
+
+#       initialize all widget with self.
+
+#   def MethodsForSignals...
+        
+
+
+
 
 
 class SidebarHeading(QLabel):  # pylint: disable=R0903

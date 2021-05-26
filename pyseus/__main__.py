@@ -6,12 +6,15 @@ Methods
 **load(arg)** - Startup function and console entry point.
 """
 
+# argv gives all input arguments that are used while calling script in CL as a list
 from sys import argv
 import numpy
 
 from .core import PySeus
 
 
+
+# standard value of arg if not defined is None
 def load(arg=None):
     """Start Pyseus and load *arg* (can be a path or data array)."""
 

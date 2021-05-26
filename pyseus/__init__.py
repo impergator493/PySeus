@@ -28,3 +28,4 @@ Subpackages
 from .__main__ import load
 from .core import PySeus
 from .settings import settings
+print("testitest")

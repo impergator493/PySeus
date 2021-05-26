@@ -30,6 +30,7 @@ class PySeus():  # pylint: disable=R0902
         self.qt_app = None
         """The QApplication instance for interaction with the Qt framework."""
 
+        # QApplication is a empty sys.argv list, as this is handled in the main class
         if isinstance(qApp, type(None)):
             self.qt_app = QApplication([])
         else:
