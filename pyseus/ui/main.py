@@ -291,10 +291,11 @@ class MainWindow(QMainWindow):  # pylint: disable=R0902
         tv_L1 = QRadioButton("L1")
         tv_L2 = QRadioButton("L2")
         tv_ROF = QRadioButton("HuberROF")
-        tv_group.addButton(tv_L1)
-        tv_group.addButton(tv_L2)
-        tv_group.addButton(tv_ROF)
+        tv_group.addButton(tv_L1, 1)
+        tv_group.addButton(tv_L2, 2)
+        tv_group.addButton(tv_ROF, 3)
 
+        self.tv_group = tv_group
 
         form = QFormLayout()
         self.qline_lambd = QLineEdit()
@@ -308,7 +309,7 @@ class MainWindow(QMainWindow):  # pylint: disable=R0902
         form.addRow("Alpha",self.qline_alpha)
 
         
-
+        # function without brackets just connects the function, but does not call it
         btns = QDialogButtonBox()
         btns.setStandardButtons(QDialogButtonBox.Cancel | QDialogButtonBox.Ok)
         btns.accepted.connect(self.signal_ok)
@@ -350,11 +351,13 @@ class MainWindow(QMainWindow):  # pylint: disable=R0902
         self.lambd = float(self.qline_lambd.text())
         self.iter = int(self.qline_iter.text())  
 
-        
+        print(self.tv_group.checkedId())
         
         noisy = scipy.io.loadmat('./tests/cameraman_noise.mat')['im']
         denoise = TV()
-        denoised_L2 = denoise.tv_denoising_L2(noisy,self.lambd,self.iter)
+
+        
+        denoised = denoise.tv_denoising_L2(noisy,self.lambd,self.iter)
 
         plt.figure(figsize=(16,10))
         plt.subplot(121)
@@ -362,7 +365,7 @@ class MainWindow(QMainWindow):  # pylint: disable=R0902
         plt.axis('off')
         plt.title('noisy', fontsize=20)
         plt.subplot(122)
-        plt.imshow(denoised_L2, cmap=plt.cm.gray)
+        plt.imshow(denoised, cmap=plt.cm.gray)
         plt.axis('off')
         plt.title('denoised', fontsize=20) 
 
@@ -386,10 +389,6 @@ class MainWindow(QMainWindow):  # pylint: disable=R0902
 #       initialize all widget with self.
 
 #   def MethodsForSignals...
-        
-
-
-
 
 
 class SidebarHeading(QLabel):  # pylint: disable=R0903
