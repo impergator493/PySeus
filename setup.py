@@ -16,10 +16,11 @@ setup(
         'settings.ini',
         'ui/style_dark.qss',
         'ui/icon.png',
+        'settings.ini'
     ]},
     include_package_data=True,
     install_requires=[
-        'PySide2',
+        'pyside2==5.13',
         'numpy',
         'opencv-python',
         'h5py',
