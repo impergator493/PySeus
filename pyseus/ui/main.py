@@ -175,11 +175,14 @@ class MainWindow(QMainWindow):  # pylint: disable=R0902
         ami(self.denoise_menu, "TV",
             self._open_dialog_tv, "---")
         ami(self.denoise_menu, "TGV",
+            lambda: None , "---")
         ami(self.denoise_menu, "H1",
+            lambda: None ,"---")
 
 
         # About action is its own top level menu
         ami(menu_bar, "&About", self._action_about)
+
 
     def show_status(self, message):
         """Display *message* in the status bar."""
@@ -262,7 +265,7 @@ class MainWindow(QMainWindow):  # pylint: disable=R0902
         self.app.toggle_cine()
 
     def _open_dialog_tv(self):
-        self.denoise_dialog = DialogDenoise(self)
+        self.denoise_dialog = DialogDenoise(self.app)
     
 
 

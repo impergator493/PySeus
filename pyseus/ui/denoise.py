@@ -1,19 +1,25 @@
 from PySide2.QtWidgets import QButtonGroup, QDialog, QDialogButtonBox, QFormLayout, QLineEdit, QMainWindow, QAction, QLabel, QFileDialog, \
                               QFrame, QPushButton, QRadioButton, QVBoxLayout, QHBoxLayout, QWidget
 
+from .view import ViewWidget
+
 from pyseus.denoising.tv import TV
 import scipy.io
 import matplotlib.pyplot as plt
 
 class DialogDenoise(QDialog):
 
-    def __init__(self,parent = None):
-        super().__init__(parent)
+    # parent Window has to be added?
+    def __init__(self,app):
+        super().__init__()
      
+        self.app = app
+        self.window_denoised = DenoisedWindow(self.app)
+
         self.alpha = 0
         self.lambd = 0
         self.iter = 0
-        
+              
 
         self.dialog = QDialog()
         vlayout = QVBoxLayout()
@@ -90,15 +96,20 @@ class DialogDenoise(QDialog):
                                     "color: white;"
                                     "}"
                                 )
-        self.dialog.exec_()
+        self.dialog.show()
+
+        
+
 
     def signal_ok(self):
         self.alpha = float(self.qline_alpha.text())
         self.lambd = float(self.qline_lambd.text())
         self.iter = int(self.qline_iter.text())  
 
-        print(self.iter)
-        print(self.grp_tv_type.checkedId())
+        
+
+
+        #print(self.grp_tv_type.checkedId())
         
         noisy = scipy.io.loadmat('./tests/cameraman_noise.mat')['im']
         denoise = TV()
@@ -117,3 +128,17 @@ class DialogDenoise(QDialog):
 
         plt.get_current_fig_manager().window.showMaximized()
         plt.show()
+
+        self.window_denoised.show()
+
+
+class DenoisedWindow(QWidget):
+
+    def __init__(self,app):
+        super().__init__()
+        
+        self.view = ViewWidget(app)
+        wrapper = QFrame(self)
+        wrapper.setLayout(QHBoxLayout())
+        wrapper.layout().addWidget(self.view)
+        #self.setCentralWidget(wrapper)
