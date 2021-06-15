@@ -20,7 +20,7 @@ class TV():
         self.theta = 1.0
 
         
-
+    # M: @TODO define as class method?
     def tv_denoising_L2(self,img, lambda_rat, iterations):
 
         # check dimensions, so that just 2D image is processed at once

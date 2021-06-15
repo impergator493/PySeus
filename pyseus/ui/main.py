@@ -171,6 +171,7 @@ class MainWindow(QMainWindow):  # pylint: disable=R0902
         self.tools_menu.addSeparator()
         ami(self.tools_menu, "&Clear RoI", self._action_tool_clear, "Esc")
 
+        # @TODO generate menu entries the same way as tool menu
         self.denoise_menu = menu_bar.addMenu("&Denoise")
         ami(self.denoise_menu, "TV",
             self._open_dialog_tv, "---")
@@ -265,7 +266,7 @@ class MainWindow(QMainWindow):  # pylint: disable=R0902
         self.app.toggle_cine()
 
     def _open_dialog_tv(self):
-        self.denoise_dialog = DialogDenoise(self.app)
+        self.app.show_denoise_window()
     
 
 

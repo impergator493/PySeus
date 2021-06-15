@@ -1,9 +1,11 @@
-from PySide2.QtWidgets import QButtonGroup, QDialog, QDialogButtonBox, QFormLayout, QLineEdit, QMainWindow, QAction, QLabel, QFileDialog, \
-                              QFrame, QPushButton, QRadioButton, QVBoxLayout, QHBoxLayout, QWidget
+from PySide2.QtWidgets import QButtonGroup, QDialog, QDialogButtonBox, QFormLayout, QLayout, QLineEdit, QMainWindow, QAction, QLabel, QFileDialog, \
+                              QFrame, QPushButton, QRadioButton, QScrollArea, QVBoxLayout, QHBoxLayout, QWidget
 
 from .view import ViewWidget
 
 from pyseus.denoising.tv import TV
+from pyseus.modes.grayscale import Grayscale
+
 import scipy.io
 import matplotlib.pyplot as plt
 
@@ -14,17 +16,19 @@ class DialogDenoise(QDialog):
         super().__init__()
      
         self.app = app
-        self.window_denoised = DenoisedWindow(self.app)
+        self.window_denoised = DenoisedWindow(app)
+        self.mode = Grayscale()
+
 
         self.alpha = 0
         self.lambd = 0
         self.iter = 0
               
 
-        self.dialog = QDialog()
+        
         vlayout = QVBoxLayout()
         hlayout = QHBoxLayout()
-        self.dialog.setWindowTitle("Denoise")
+        self.setWindowTitle("Denoise")
         
         # subgroup of radio buttons for data selection
         self.lab_data_sel = QLabel("Data Selection")
@@ -81,9 +85,9 @@ class DialogDenoise(QDialog):
         hlayout.addLayout(vlayout)
         hlayout.addLayout(form)
         
-        self.dialog.setLayout(hlayout)
+        self.setLayout(hlayout)
         #dialog.setStyleSheet('color: white')
-        self.dialog.setStyleSheet("QLineEdit"
+        self.setStyleSheet("QLineEdit"
                                     "{"
                                     "color: white; background : darkgray;"
                                     "}" 
@@ -96,7 +100,6 @@ class DialogDenoise(QDialog):
                                     "color: white;"
                                     "}"
                                 )
-        self.dialog.show()
 
         
 
@@ -106,9 +109,6 @@ class DialogDenoise(QDialog):
         self.lambd = float(self.qline_lambd.text())
         self.iter = int(self.qline_iter.text())  
 
-        
-
-
         #print(self.grp_tv_type.checkedId())
         
         noisy = scipy.io.loadmat('./tests/cameraman_noise.mat')['im']
@@ -116,29 +116,40 @@ class DialogDenoise(QDialog):
         
         denoised = denoise.tv_denoising_L2(noisy,self.lambd,self.iter)
 
-        plt.figure(figsize=(16,10))
-        plt.subplot(121)
-        plt.imshow(noisy, cmap=plt.cm.gray)
-        plt.axis('off')
-        plt.title('noisy', fontsize=20)
-        plt.subplot(122)
-        plt.imshow(denoised, cmap=plt.cm.gray)
-        plt.axis('off')
-        plt.title('denoised', fontsize=20) 
+        # ------------------ Matplot implementation
+        # plt.figure(figsize=(16,10))
+        # plt.subplot(121)
+        # plt.imshow(noisy, cmap=plt.cm.gray)
+        # plt.axis('off')
+        # plt.title('noisy', fontsize=20)
+        # plt.subplot(122)
+        # plt.imshow(denoised, cmap=plt.cm.gray)
+        # plt.axis('off')
+        # plt.title('denoised', fontsize=20) 
 
-        plt.get_current_fig_manager().window.showMaximized()
-        plt.show()
+        # plt.get_current_fig_manager().window.showMaximized()
+        # plt.show()
+        # ------------------ Matplot End
 
+        # shortcut, thats not a good solution
+        # should the original grayscale object be used with temporary window
+        # or a new grayscale objecte be generated which is independent?
+        self.mode.temporary_window(denoised)
+        pixmap = self.mode.get_pixmap(denoised)
+        self.window_denoised.view.set(pixmap)
+        self.window_denoised.view.zoom_fit()
+        self.window_denoised.setGeometry(100,100,600,600)
         self.window_denoised.show()
+        self.window_denoised.adjustSize()
 
 
-class DenoisedWindow(QWidget):
+
+class DenoisedWindow(QDialog):
 
     def __init__(self,app):
         super().__init__()
-        
+
         self.view = ViewWidget(app)
         wrapper = QFrame(self)
         wrapper.setLayout(QHBoxLayout())
         wrapper.layout().addWidget(self.view)
-        #self.setCentralWidget(wrapper)

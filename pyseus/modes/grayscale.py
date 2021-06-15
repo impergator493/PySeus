@@ -13,7 +13,7 @@ import numpy
 from ..settings import settings
 from .base import BaseMode
 
-
+# M: This class just adjusts the value border for graphical representation, no gui things themselves
 class Grayscale(BaseMode):
     """Display class for grayscale images with simple windowing."""
 

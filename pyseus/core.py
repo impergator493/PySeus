@@ -18,6 +18,7 @@ from .settings import settings
 from .tools import AreaTool, LineTool
 from .ui import MainWindow
 from .ui.meta import MetaWindow
+from .ui.denoise import DialogDenoise
 
 
 class PySeus():  # pylint: disable=R0902
@@ -50,6 +51,11 @@ class PySeus():  # pylint: disable=R0902
         self.dataset = None
         """The current dataset object.
         See `Formats <formats.html>`_."""
+
+        # M: HTML file is still missing
+        self.dataset_denoised = None
+        """The temporary denoised dataset object.
+        """
 
         self.mode = Grayscale()
         """The display mode object.
@@ -159,9 +165,9 @@ class PySeus():  # pylint: disable=R0902
         """Refresh the displayed image."""
         if self.slice == -1:
             return
-
+        # M: thats always a raw 2D picture, apart from giving no self.slice value than its 3D, but 3D cannot be displayed -> return
         data = self.dataset.get_pixeldata(self.slice)
-
+        # M: if the scaling was not proportional, the new size is calculated for stretch free representation, eg if it was rotated before
         # @TODO move to FormatBase (get_pixeldata_adjusted)
         spacing = self.dataset.get_spacing()
         if spacing[0] != spacing[1]:
@@ -171,7 +177,7 @@ class PySeus():  # pylint: disable=R0902
             else:
                 size = (int(data.shape[0]),
                         int(data.shape[1]*spacing[1]/spacing[0]))
-
+            # M: scales the image with factors of spacing given abouve, size var really holds the abs. pixelsize of the new image
             data = cv2.resize(data, size)
 
         pixmap = self.mode.get_pixmap(data)
@@ -246,6 +252,13 @@ class PySeus():  # pylint: disable=R0902
         See `Interface <interface.html>`_."""
         self.meta_window = MetaWindow(self, self.dataset.get_metadata())
         self.meta_window.show()
+
+    # M: @TODO rewrite and restructure denoising classes so that they can be called from here
+    def show_denoise_window(self):
+        """Show the denoise window."""
+        self.denoise_window = DialogDenoise(self)
+        self.denoise_window.show()    
+
 
     def clear(self):
         """Reset the application."""
