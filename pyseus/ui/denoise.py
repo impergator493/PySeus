@@ -1,10 +1,13 @@
-from PySide2.QtWidgets import QButtonGroup, QDialog, QDialogButtonBox, QFormLayout, QLayout, QLineEdit, QMainWindow, QAction, QLabel, QFileDialog, \
+from PySide2.QtWidgets import QButtonGroup, QDesktopWidget, QDialog, QDialogButtonBox, QFormLayout, QLayout, QLineEdit, QMainWindow, QAction, QLabel, QFileDialog, \
                               QFrame, QPushButton, QRadioButton, QScrollArea, QVBoxLayout, QHBoxLayout, QWidget
 
 from .view import ViewWidget
 
 from pyseus.denoising.tv import TV
 from pyseus.modes.grayscale import Grayscale
+from PySide2.QtCore import Qt
+import numpy
+
 
 import scipy.io
 import matplotlib.pyplot as plt
@@ -17,13 +20,7 @@ class DialogDenoise(QDialog):
      
         self.app = app
         self.window_denoised = DenoisedWindow(app)
-        self.mode = Grayscale()
-
-
-        self.alpha = 0
-        self.lambd = 0
-        self.iter = 0
-              
+            
 
         
         vlayout = QVBoxLayout()
@@ -105,16 +102,41 @@ class DialogDenoise(QDialog):
 
 
     def signal_ok(self):
-        self.alpha = float(self.qline_alpha.text())
-        self.lambd = float(self.qline_lambd.text())
-        self.iter = int(self.qline_iter.text())  
+        alpha = float(self.qline_alpha.text())
+        lambd = float(self.qline_lambd.text())
+        iter = int(self.qline_iter.text())  
 
-        #print(self.grp_tv_type.checkedId())
+        self.window_denoised.open_dialog(alpha,lambd,iter)
+
+        # @TODO which other algorithms can be called here, depending on the selected radio button?
+
+       
+
+        
+
+        
+
+
+class DenoisedWindow(QDialog):
+
+    def __init__(self,app):
+        super().__init__()
+
+        self.view = DenoisedViewWidget(app)
+        #self.view.widgetResizable()
+        self.setLayout(QHBoxLayout())
+        self.layout().addWidget(self.view)
+
+        self.mode = Grayscale()
+
+    def open_dialog(self,alpha,lambd,iterations):
+
+         #print(self.grp_tv_type.checkedId())
         
         noisy = scipy.io.loadmat('./tests/cameraman_noise.mat')['im']
         denoise = TV()
         
-        denoised = denoise.tv_denoising_L2(noisy,self.lambd,self.iter)
+        denoised = denoise.tv_denoising_L2(noisy,lambd,iterations)
 
         # ------------------ Matplot implementation
         # plt.figure(figsize=(16,10))
@@ -131,25 +153,106 @@ class DialogDenoise(QDialog):
         # plt.show()
         # ------------------ Matplot End
 
+        # @TODO
         # shortcut, thats not a good solution
         # should the original grayscale object be used with temporary window
         # or a new grayscale objecte be generated which is independent?
         self.mode.temporary_window(denoised)
         pixmap = self.mode.get_pixmap(denoised)
-        self.window_denoised.view.set(pixmap)
-        self.window_denoised.view.zoom_fit()
-        self.window_denoised.setGeometry(100,100,600,600)
-        self.window_denoised.show()
-        self.window_denoised.adjustSize()
+        self.view.set(pixmap)
+        #self.setGeometry(600,300,600,600)
+        self.show()
+        screen_size = QDesktopWidget().screenGeometry()
+        self.resize(screen_size.width()*0.3, screen_size.height()*0.3)
+        self.view.zoom_fit()
 
 
+        
+        
+        # print(self.geometry().x())
+        # print(self.geometry().y())
+        # print(self.geometry().height())
+        # print(self.geometry().width())
 
-class DenoisedWindow(QDialog):
+        
 
-    def __init__(self,app):
-        super().__init__()
+class DenoisedViewWidget(QScrollArea):
+    """Widget providing an interactive viewport."""
 
-        self.view = ViewWidget(app)
-        wrapper = QFrame(self)
-        wrapper.setLayout(QHBoxLayout())
-        wrapper.layout().addWidget(self.view)
+    # @TODO app is obsolete here, generate new class
+    def __init__(self, app):
+        QScrollArea.__init__(self)
+        self.app = app
+
+        self.image = QLabel()
+        self.image.setScaledContents(True)
+        self.image.setMouseTracking(True)
+        
+
+        self.zoom_factor = 1
+        """The current zoom factor of the image."""
+
+        self.mouse_action = 0
+        """The current action on mouse move.
+        Can be *ROI*, *WINDOW* or *PAN*."""
+
+        self.last_position = None
+        """The last position, from which mouse events were processed."""
+
+        self.setMouseTracking(True)
+        self.setAlignment(Qt.AlignHCenter | Qt.AlignVCenter)
+        self.setWidget(self.image)
+
+        # Hide scrollbars
+        self.horizontalScrollBar().setStyleSheet("QScrollBar { height: 0 }")
+        self.verticalScrollBar().setStyleSheet("QScrollBar { width: 0 }")
+
+    def set(self, pixmap):
+        """Display the image in *pixmap*."""
+        self.image.setPixmap(pixmap)
+
+    def zoom(self, factor, relative=True):
+        """Set the zoom level for the displayed image.
+
+        By default, the new zoom factor will be relative to the current
+        zoom factor. If *relative* is set to False, *factor* will be used as
+        the new zoom factor."""
+
+        if self.image is None \
+                or (relative and (0.1 >= self.zoom_factor * factor >= 100)):
+            return
+
+        self.zoom_factor = self.zoom_factor * factor if relative else factor
+        self.image.resize(self.zoom_factor * self.image.pixmap().size())
+
+        v_scroll = int(factor * self.verticalScrollBar().value() +
+                       ((factor-1) * self.verticalScrollBar().pageStep()/2))
+        self.verticalScrollBar().setValue(v_scroll)
+
+        h_scroll = int(factor * self.horizontalScrollBar().value() +
+                       ((factor-1) * self.horizontalScrollBar().pageStep()/2))
+        self.horizontalScrollBar().setValue(h_scroll)
+
+    def zoom_fit(self):
+        """Zoom the displayed image to fit the available viewport."""
+
+        image = self.image.pixmap().size()
+        viewport = self.size()
+
+        
+        if image.height() == 0 or image.width() == 0:
+            return
+
+        v_zoom = viewport.height() / image.height()
+        h_zoom = viewport.width() / image.width()
+        self.zoom(min(v_zoom, h_zoom)*0.99, False)
+
+    #This is a basic event handler which can be reimplemented in every widget class to receive wheel commands.
+    def wheelEvent(self, event):  # pylint: disable=C0103
+        """Handle scroll wheel events in the viewport.
+        Scroll - Change current slice up or down."""
+        
+        if event.modifiers() == Qt.NoModifier:
+            #slice_ = int(numpy.sign(event.delta()))
+            #self.app.select_slice(slice_, True)
+            return 
