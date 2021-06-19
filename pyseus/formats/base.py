@@ -73,6 +73,17 @@ class BaseFormat():
 
         return []
 
+    def set_pixeldata(self, dataset):
+        """Sets pixeldata after denoising, if changes are confirmed."""
+
+        if isinstance(dataset,numpy.ndarray):
+            if dataset.ndim == 2:  # single slice
+                self.pixeldata = [dataset]
+
+            if dataset.ndim == 3:  # multiple slices
+                self.pixeldata = dataset
+
+
     def get_scan_metadata(self, scan):  # pylint: disable=R0201,W0613
         """Collect and return the metadata from the scan *scan*.
 
@@ -128,6 +139,8 @@ class BaseFormat():
             return self.pixeldata.copy()
 
         return self.pixeldata[slice_].copy()
+
+    
 
     def get_spacing(self, reset=False):  # pylint: disable=R0201
         """Return the pixel spacing, if available.

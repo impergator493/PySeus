@@ -17,12 +17,12 @@ class DialogDenoise(QDialog):
     # parent Window has to be added?
     def __init__(self,app):
         super().__init__()
-     
+    
         self.app = app
         self.window_denoised = DenoisedWindow(app)
-            
 
-        
+
+
         vlayout = QVBoxLayout()
         hlayout = QHBoxLayout()
         self.setWindowTitle("Denoise")
@@ -66,7 +66,7 @@ class DialogDenoise(QDialog):
         self.box_btns = QDialogButtonBox()
         self.box_btns.setStandardButtons(QDialogButtonBox.Cancel | QDialogButtonBox.Ok)
         self.box_btns.accepted.connect(self.signal_ok)
-        self.box_btns.rejected.connect(lambda:self.dialog.close())
+        self.box_btns.rejected.connect(lambda:self.close())
    
 
         # organize items on GUI
@@ -104,17 +104,13 @@ class DialogDenoise(QDialog):
     def signal_ok(self):
         alpha = float(self.qline_alpha.text())
         lambd = float(self.qline_lambd.text())
-        iter = int(self.qline_iter.text())  
+        iterations = int(self.qline_iter.text())  
 
-        self.window_denoised.open_dialog(alpha,lambd,iter)
+        self.window_denoised.open_dialog(alpha,lambd,iterations)
 
         # @TODO which other algorithms can be called here, depending on the selected radio button?
 
-       
 
-        
-
-        
 
 
 class DenoisedWindow(QDialog):
@@ -122,10 +118,21 @@ class DenoisedWindow(QDialog):
     def __init__(self,app):
         super().__init__()
 
-        self.view = DenoisedViewWidget(app)
+        self.app = app
+        self.denoised = None
+        self.slice_id = None 
+
+        self.view = DenoisedViewWidget(self.app, self)
         #self.view.widgetResizable()
-        self.setLayout(QHBoxLayout())
+        self.box_btns_ok = QDialogButtonBox()
+        self.box_btns_ok.setStandardButtons(QDialogButtonBox.Cancel | QDialogButtonBox.Ok)
+        self.box_btns_ok.accepted.connect(self.signal_ok)
+        self.box_btns_ok.rejected.connect(lambda:self.close())
+
+        self.setLayout(QVBoxLayout())
         self.layout().addWidget(self.view)
+        self.layout().addWidget(self.box_btns_ok)
+
 
         self.mode = Grayscale()
 
@@ -133,11 +140,32 @@ class DenoisedWindow(QDialog):
 
          #print(self.grp_tv_type.checkedId())
         
-        noisy = scipy.io.loadmat('./tests/cameraman_noise.mat')['im']
+        #noisy = scipy.io.loadmat('./tests/cameraman_noise.mat')['im']
         denoise = TV()
         
-        denoised = denoise.tv_denoising_L2(noisy,lambd,iterations)
+        # get current slice which is displayed, if 3D is selected set -1 slice
+        # normally this should be chosen by radiobuttons
+        
+        #self.slice_id = self.app.get_slice_id()
+        self.slice_id = -1
+        noisy = self.app.dataset.get_pixeldata(self.slice_id)
 
+
+
+        if self.slice_id == -1:
+            self.denoised = numpy.zeros(noisy.shape)
+            for i in range(0, self.app.dataset.slice_count()):
+                self.denoised[i,:,:] = denoise.tv_denoising_L2(noisy[i,:,:],lambd,iterations)
+            self.denoised_displayed = self.denoised[(self.app.dataset.slice_count() // 2),:,:]
+            self.slice_id = (self.app.dataset.slice_count() // 2)
+
+
+        else:
+            self.denoised = denoise.tv_denoising_L2(noisy,lambd,iterations)
+            self.denoised_displayed = self.denoised
+
+        
+        self.display_image(self.denoised_displayed)
         # ------------------ Matplot implementation
         # plt.figure(figsize=(16,10))
         # plt.subplot(121)
@@ -157,8 +185,12 @@ class DenoisedWindow(QDialog):
         # shortcut, thats not a good solution
         # should the original grayscale object be used with temporary window
         # or a new grayscale objecte be generated which is independent?
-        self.mode.temporary_window(denoised)
-        pixmap = self.mode.get_pixmap(denoised)
+     
+
+    def display_image(self, image):
+        
+        self.mode.temporary_window(image)
+        pixmap = self.mode.get_pixmap(image)
         self.view.set(pixmap)
         #self.setGeometry(600,300,600,600)
         self.show()
@@ -166,23 +198,40 @@ class DenoisedWindow(QDialog):
         self.resize(screen_size.width()*0.3, screen_size.height()*0.3)
         self.view.zoom_fit()
 
+    def resizeEvent(self, event):  # pylint: disable=C0103
+        """Keep the viewport centered and adjust zoom on window resize."""
+        x_factor = event.size().width() / event.oldSize().width()
+        # y_factor = event.size().height() / event.oldSize().height()
+        # @TODO x_factor if xf < yf or xf * width * zoom_factor < viewport_x
+        self.view.zoom(x_factor, True)
 
+    
+    def signal_ok(self):
         
-        
-        # print(self.geometry().x())
-        # print(self.geometry().y())
-        # print(self.geometry().height())
-        # print(self.geometry().width())
+        self.app.set_denoised_dataset(self.denoised)
 
+
+    def refresh(self, slice_inc):
+        
+        new_slice = self.slice_id + slice_inc
+        if 0 <= new_slice < self.app.dataset.slice_count():
+            self.display_image(self.denoised[new_slice])
+            self.slice_id = new_slice
+        elif new_slice < 0:
+            self.slice_id = 0
+        else:
+            self.slice_id >= self.app.dataset.slice_count()
+        
         
 
 class DenoisedViewWidget(QScrollArea):
     """Widget providing an interactive viewport."""
 
     # @TODO app is obsolete here, generate new class
-    def __init__(self, app):
+    def __init__(self, app, dialog):
         QScrollArea.__init__(self)
         self.app = app
+        self.dialog = dialog
 
         self.image = QLabel()
         self.image.setScaledContents(True)
@@ -252,7 +301,7 @@ class DenoisedViewWidget(QScrollArea):
         """Handle scroll wheel events in the viewport.
         Scroll - Change current slice up or down."""
         
-        if event.modifiers() == Qt.NoModifier:
-            #slice_ = int(numpy.sign(event.delta()))
-            #self.app.select_slice(slice_, True)
-            return 
+        slice_ = int(numpy.sign(event.delta()))
+        self.dialog.refresh(slice_)
+            
+           

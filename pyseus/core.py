@@ -52,7 +52,8 @@ class PySeus():  # pylint: disable=R0902
         """The current dataset object.
         See `Formats <formats.html>`_."""
 
-        # M: HTML file is still missing
+        # M: @TODO object is not implemented like for dataset, HTML file is still missing
+        # Is this variable neccessary?
         self.dataset_denoised = None
         """The temporary denoised dataset object.
         """
@@ -71,6 +72,9 @@ class PySeus():  # pylint: disable=R0902
 
         self.meta_window = None
         """Holds the meta window object."""
+
+        self.denoise_window = None
+        """Hold the denoised diaglog object."""
 
         self.slice = -1
         """Index of the current slice."""
@@ -247,17 +251,31 @@ class PySeus():  # pylint: disable=R0902
         self.window.info.update_slice(sid, self.dataset.slice_count())
         self.slice = sid
 
+    def get_slice_id(self):
+        return self.slice
+
     def show_metadata_window(self):
         """Show the metadata window.
         See `Interface <interface.html>`_."""
         self.meta_window = MetaWindow(self, self.dataset.get_metadata())
         self.meta_window.show()
 
-    # M: @TODO rewrite and restructure denoising classes so that they can be called from here
     def show_denoise_window(self):
         """Show the denoise window."""
         self.denoise_window = DialogDenoise(self)
-        self.denoise_window.show()    
+        self.denoise_window.show()
+
+    def set_denoised_dataset(self,dataset):
+        """Show denoised data in Mainwindow after confirmation in Denoising Dialog."""
+        self.dataset.set_pixeldata(dataset)
+        if dataset.ndim == 2:
+            self._set_slice(0)
+        elif dataset.ndim == 3:
+            self._set_slice(self.dataset.slice_count() // 2)
+        self.mode.setup_window(dataset)
+        self.refresh()
+        self.window.view.zoom_fit()
+
 
 
     def clear(self):
