@@ -8,6 +8,7 @@ Classes
 
 import os
 import cv2
+import numpy
 
 from PySide2.QtCore import QTimer
 from PySide2.QtWidgets import QApplication, QMessageBox
@@ -265,6 +266,7 @@ class PySeus():  # pylint: disable=R0902
         self.denoise_window = DialogDenoise(self)
         self.denoise_window.show()
 
+    # @TODO Move to dataset(formats) class to remove numpy from core class 
     def set_denoised_dataset(self,dataset):
         """Save denoised data in Dataset after confirmation in Denoising Dialog."""
         if dataset.ndim == 2:
