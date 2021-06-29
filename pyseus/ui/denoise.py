@@ -98,15 +98,21 @@ class DialogDenoise(QDialog):
                                     "}"
                                 )
 
-        
-
-
     def signal_ok(self):
         alpha = float(self.qline_alpha.text())
         lambd = float(self.qline_lambd.text())
         iterations = int(self.qline_iter.text())  
 
-        self.window_denoised.open_dialog(alpha,lambd,iterations)
+        whole_data = None
+        data_sel_id = self.grp_data_sel.checkedId()
+        if data_sel_id == 1:
+            whole_data = False
+        elif data_sel_id == 2:
+            whole_data = True
+
+
+
+        self.window_denoised.open_dialog(alpha,lambd,iterations,whole_data)
 
         # @TODO which other algorithms can be called here, depending on the selected radio button?
 
@@ -120,7 +126,8 @@ class DenoisedWindow(QDialog):
 
         self.app = app
         self.denoised = None
-        self.slice_id = None 
+        self.slice_id_selected = None
+        self.whole_dataset = None
 
         self.view = DenoisedViewWidget(self.app, self)
         #self.view.widgetResizable()
@@ -136,59 +143,45 @@ class DenoisedWindow(QDialog):
 
         self.mode = Grayscale()
 
-    def open_dialog(self,alpha,lambd,iterations):
+    def open_dialog(self,alpha,lambd,iterations,whole_data):
 
          #print(self.grp_tv_type.checkedId())
-        
-        #noisy = scipy.io.loadmat('./tests/cameraman_noise.mat')['im']
+
         denoise = TV()
         
-        # get current slice which is displayed, if 3D is selected set -1 slice
-        # normally this should be chosen by radiobuttons
-        
-        #self.slice_id = self.app.get_slice_id()
-        self.slice_id = -1
-        noisy = self.app.dataset.get_pixeldata(self.slice_id)
+        self.whole_dataset = whole_data
 
-
-
-        if self.slice_id == -1:
+        if self.whole_dataset:
+            noisy = self.app.dataset.get_pixeldata(-1)
+            
             self.denoised = numpy.zeros(noisy.shape)
             for i in range(0, self.app.dataset.slice_count()):
                 self.denoised[i,:,:] = denoise.tv_denoising_L2(noisy[i,:,:],lambd,iterations)
-            self.denoised_displayed = self.denoised[(self.app.dataset.slice_count() // 2),:,:]
-            self.slice_id = (self.app.dataset.slice_count() // 2)
 
+            self.slice_id_selected = (self.app.dataset.slice_count() // 2)
+            denoised_displayed = self.denoised[self.slice_id_selected,:,:]
 
-        else:
-            self.denoised = denoise.tv_denoising_L2(noisy,lambd,iterations)
-            self.denoised_displayed = self.denoised
 
         
-        self.display_image(self.denoised_displayed)
-        # ------------------ Matplot implementation
-        # plt.figure(figsize=(16,10))
-        # plt.subplot(121)
-        # plt.imshow(noisy, cmap=plt.cm.gray)
-        # plt.axis('off')
-        # plt.title('noisy', fontsize=20)
-        # plt.subplot(122)
-        # plt.imshow(denoised, cmap=plt.cm.gray)
-        # plt.axis('off')
-        # plt.title('denoised', fontsize=20) 
+        else:    
+            noisy = self.app.dataset.get_pixeldata(self.app.get_slice_id())
+            
+            self.denoised = denoise.tv_denoising_L2(noisy,lambd,iterations)
+            denoised_displayed = self.denoised
+        
+          
+        self.display_image(denoised_displayed)
+       
+        
+     
 
-        # plt.get_current_fig_manager().window.showMaximized()
-        # plt.show()
-        # ------------------ Matplot End
+    def display_image(self, image):
+        
 
         # @TODO
         # shortcut, thats not a good solution
         # should the original grayscale object be used with temporary window
         # or a new grayscale objecte be generated which is independent?
-     
-
-    def display_image(self, image):
-        
         self.mode.temporary_window(image)
         pixmap = self.mode.get_pixmap(image)
         self.view.set(pixmap)
@@ -198,29 +191,29 @@ class DenoisedWindow(QDialog):
         self.resize(screen_size.width()*0.3, screen_size.height()*0.3)
         self.view.zoom_fit()
 
+     
+    def refresh_slice(self, slice_inc):
+        
+        if self.whole_dataset:
+            new_slice = self.slice_id_selected + slice_inc
+            if 0 <= new_slice < self.app.dataset.slice_count():
+                self.display_image(self.denoised[new_slice])
+                self.slice_id_selected = new_slice
+            elif new_slice < 0:
+                self.slice_id_selected = 0
+            else:
+                self.slice_id_selected = self.app.dataset.slice_count()
+
+    def signal_ok(self):
+        
+        self.app.set_denoised_dataset(self.denoised)
+
     def resizeEvent(self, event):  # pylint: disable=C0103
         """Keep the viewport centered and adjust zoom on window resize."""
         x_factor = event.size().width() / event.oldSize().width()
         # y_factor = event.size().height() / event.oldSize().height()
         # @TODO x_factor if xf < yf or xf * width * zoom_factor < viewport_x
         self.view.zoom(x_factor, True)
-
-    
-    def signal_ok(self):
-        
-        self.app.set_denoised_dataset(self.denoised)
-
-
-    def refresh(self, slice_inc):
-        
-        new_slice = self.slice_id + slice_inc
-        if 0 <= new_slice < self.app.dataset.slice_count():
-            self.display_image(self.denoised[new_slice])
-            self.slice_id = new_slice
-        elif new_slice < 0:
-            self.slice_id = 0
-        else:
-            self.slice_id >= self.app.dataset.slice_count()
         
         
 
@@ -302,6 +295,9 @@ class DenoisedViewWidget(QScrollArea):
         Scroll - Change current slice up or down."""
         
         slice_ = int(numpy.sign(event.delta()))
-        self.dialog.refresh(slice_)
+        self.dialog.refresh_slice(slice_)
+
+
+        
             
            

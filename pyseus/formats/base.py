@@ -73,14 +73,14 @@ class BaseFormat():
 
         return []
 
-    def set_pixeldata(self, dataset):
+    def set_pixeldata(self, dataset, slice_id):
         """Sets pixeldata after denoising, if changes are confirmed."""
 
         if isinstance(dataset,numpy.ndarray):
-            if dataset.ndim == 2:  # single slice
-                self.pixeldata = [dataset]
+            if dataset.ndim == 2 and slice_id != -1:  # single slice
+                self.pixeldata[slice_id,:,:] = dataset
 
-            if dataset.ndim == 3:  # multiple slices
+            if dataset.ndim == 3 and slice_id == -1:  # multiple slices
                 self.pixeldata = dataset
 
 
@@ -140,7 +140,13 @@ class BaseFormat():
 
         return self.pixeldata[slice_].copy()
 
-    
+    def get_minmax_pixeldata(self, slice_):
+
+        data = self.get_pixeldata(slice_)
+        data_min = numpy.min(data)
+        data_max = numpy.max(data)
+        
+        return (data_min,data_max)
 
     def get_spacing(self, reset=False):  # pylint: disable=R0201
         """Return the pixel spacing, if available.

@@ -266,13 +266,22 @@ class PySeus():  # pylint: disable=R0902
         self.denoise_window.show()
 
     def set_denoised_dataset(self,dataset):
-        """Show denoised data in Mainwindow after confirmation in Denoising Dialog."""
-        self.dataset.set_pixeldata(dataset)
+        """Save denoised data in Dataset after confirmation in Denoising Dialog."""
         if dataset.ndim == 2:
-            self._set_slice(0)
+            slice_id = self.slice
         elif dataset.ndim == 3:
-            self._set_slice(self.dataset.slice_count() // 2)
-        self.mode.setup_window(dataset)
+            slice_id = -1
+        else:
+            return
+
+        old_min, old_max = self.dataset.get_minmax_pixeldata(slice_id)
+        dataset -= (numpy.min(dataset) - old_min)
+        dataset *= (old_max / numpy.max(dataset))
+        self.dataset.set_pixeldata(dataset, slice_id)
+
+        # if dataset.ndim == 3:
+        #     self._set_slice(self.dataset.slice_count() // 2)
+
         self.refresh()
         self.window.view.zoom_fit()
 
