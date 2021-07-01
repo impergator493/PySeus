@@ -1,18 +1,18 @@
 from PySide2.QtWidgets import QButtonGroup, QDesktopWidget, QDialog, QDialogButtonBox, QFormLayout, QLayout, QLineEdit, QMainWindow, QAction, QLabel, QFileDialog, \
-                              QFrame, QPushButton, QRadioButton, QScrollArea, QVBoxLayout, QHBoxLayout, QWidget
+                              QFrame, QPushButton, QRadioButton, QScrollArea, QSizePolicy, QVBoxLayout, QHBoxLayout, QWidget
 
-from .view import ViewWidget
 
+from pyseus.denoising.threading_denoise import ThreadingDenoised
 from pyseus.denoising.tv import TV
 from pyseus.modes.grayscale import Grayscale
 from PySide2.QtCore import Qt
 import numpy
+import scipy
 
 
-import scipy.io
-import matplotlib.pyplot as plt
 
-class DialogDenoise(QDialog):
+
+class DenoiseDialog(QDialog):
 
     # parent Window has to be added?
     def __init__(self,app):
@@ -37,30 +37,45 @@ class DialogDenoise(QDialog):
         self.grp_data_sel.addButton(self.btn_all_slices,2)
         self.btn_all_slices_2D = QRadioButton("2D")
         self.btn_all_slices_3D = QRadioButton("3D")
-
+        
         # subgroup of radio buttons to dataset selection
         self.lab_denoise_type = QLabel("Denoising Type")
         self.grp_tv_type = QButtonGroup()
         self.btn_tv_L1 = QRadioButton("L1")
-        self.btn_tv_L2 = QRadioButton("L2")
+        self.btn_tv_L1.setChecked(True)
         self.btn_tv_ROF = QRadioButton("HuberROF")
         self.grp_tv_type.addButton(self.btn_tv_L1, 1)
-        self.grp_tv_type.addButton(self.btn_tv_L2, 2)
-        self.grp_tv_type.addButton(self.btn_tv_ROF, 3)
+        self.grp_tv_type.addButton(self.btn_tv_ROF, 2)
 
-    
+        
+
+
+
         # form layout for parameter input for denoising algorithm
+        # TODO change Names of rows to labels, so that alpha row can be hidden completely with the name of the row
+        # not just the qlineedit field
         form = QFormLayout()
         self.qline_lambd = QLineEdit()
         #TV_lambda.setStyleSheet("color: white; background-color: darkgray")
+        self.qline_lambd.setText("30")
         form.addRow("Lambda",self.qline_lambd)
         self.qline_iter = QLineEdit()
+        self.qline_iter.setText("100")
         #TV_iter.setStyleSheet("color: white; background-color: darkgray")
         form.addRow("Iterations",self.qline_iter)
         self.qline_alpha = QLineEdit()
+        self.qline_alpha.setText("0.03")
+        size_pol = self.qline_alpha.sizePolicy()
+        size_pol.setRetainSizeWhenHidden(True)
+        self.qline_alpha.setSizePolicy(size_pol)
+        self.qline_alpha.hide()
         #TV_alpha.setStyleSheet("color: white; background-color: darkgray")
         form.addRow("Alpha",self.qline_alpha)
-
+        
+        
+        self.btn_tv_L1.clicked.connect(lambda: self.qline_alpha.hide())
+        self.btn_tv_ROF.clicked.connect(lambda: self.qline_alpha.show())
+        
         
         # function without brackets just connects the function, but does not call it
         self.box_btns = QDialogButtonBox()
@@ -75,7 +90,6 @@ class DialogDenoise(QDialog):
         vlayout.addWidget(self.btn_all_slices)
         vlayout.addWidget(self.lab_denoise_type)
         vlayout.addWidget(self.btn_tv_L1)
-        vlayout.addWidget(self.btn_tv_L2)
         vlayout.addWidget(self.btn_tv_ROF)
         vlayout.addWidget(self.box_btns)
 
@@ -98,23 +112,26 @@ class DialogDenoise(QDialog):
                                     "}"
                                 )
 
+       
+    
+
     def signal_ok(self):
+        
+        # @TODO check wether input types are okay
         alpha = float(self.qline_alpha.text())
         lambd = float(self.qline_lambd.text())
         iterations = int(self.qline_iter.text())  
 
         whole_data = None
-        data_sel_id = self.grp_data_sel.checkedId()
-        if data_sel_id == 1:
+        btn_data_id = self.grp_data_sel.checkedId()
+        if btn_data_id == 1:
             whole_data = False
-        elif data_sel_id == 2:
+        elif btn_data_id == 2:
             whole_data = True
 
+        tv_type = self.grp_tv_type.checkedId()
 
-
-        self.window_denoised.open_dialog(alpha,lambd,iterations,whole_data)
-
-        # @TODO which other algorithms can be called here, depending on the selected radio button?
+        self.window_denoised.open_window(alpha,lambd,iterations,whole_data,tv_type)
 
 
 
@@ -143,7 +160,30 @@ class DenoisedWindow(QDialog):
 
         self.mode = Grayscale()
 
-    def open_dialog(self,alpha,lambd,iterations,whole_data):
+    
+    # def denoised_callback(self, data):
+        
+    #     self.denoised = data
+
+    #     # can it be done with that variable? It must not be changed under any circumstances 
+    #     # otherwhise it is not consistent with the calculation! Lock dialog during calculation?
+
+    #     # if data.ndim == 3?
+    #     if self.whole_dataset:
+
+    #         self.slice_id_selected = (self.app.dataset.slice_count() // 2)
+    #         denoised_displayed = data[self.slice_id_selected,:,:]
+
+    #     else:
+
+    #         denoised_displayed = data
+
+    #     self.display_image(denoised_displayed)
+
+       
+    
+
+    def open_window(self,alpha,lambd,iterations,whole_data, tv_type):
 
          #print(self.grp_tv_type.checkedId())
 
@@ -151,12 +191,29 @@ class DenoisedWindow(QDialog):
         
         self.whole_dataset = whole_data
 
+        # self.denoised = numpy.zeros(noisy.shape)
+        # denoise_thread = ThreadingDenoised(self.denoised, denoise.tv_denoising_L2, self.cb, (noisy, lambd, iterations))
+        # denoise_thread.run()
+
+
+
+        #noisy = scipy.io.loadmat('./tests/cameraman_noise.mat')['im']
+
         if self.whole_dataset:
             noisy = self.app.dataset.get_pixeldata(-1)
             
+            # @TODO generalize TV Class for acceptance of 3D or create own 3D method that calls 2D method?
+            # then there is no need anymore for 2 times  if tv_type case
+
+            #L1 needs a small lambda for denoising, better can be seen with saltn pepper noise of cameraman standard noised pic
+
             self.denoised = numpy.zeros(noisy.shape)
             for i in range(0, self.app.dataset.slice_count()):
-                self.denoised[i,:,:] = denoise.tv_denoising_L2(noisy[i,:,:],lambd,iterations)
+                if tv_type == 1:
+                    self.denoised[i,:,:] = denoise.tv_denoising_L1(noisy[i,:,:],lambd,iterations)
+                if tv_type == 2:
+                    self.denoised[i,:,:] = denoise.tv_denoising_huberROF(noisy[i,:,:],lambd,iterations,alpha)
+
 
             self.slice_id_selected = (self.app.dataset.slice_count() // 2)
             denoised_displayed = self.denoised[self.slice_id_selected,:,:]
@@ -166,7 +223,10 @@ class DenoisedWindow(QDialog):
         else:    
             noisy = self.app.dataset.get_pixeldata(self.app.get_slice_id())
             
-            self.denoised = denoise.tv_denoising_L2(noisy,lambd,iterations)
+            if tv_type == 1:
+                self.denoised = denoise.tv_denoising_L1(noisy,lambd,iterations)
+            if tv_type == 2:
+                self.denoised = denoise.tv_denoising_huberROF(noisy,lambd,iterations,alpha)
             denoised_displayed = self.denoised
         
           

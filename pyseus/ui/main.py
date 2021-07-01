@@ -20,7 +20,6 @@ from PySide2.QtGui import QIcon
 from .view import ViewWidget
 from .sidebar import ConsoleWidget, InfoWidget, MetaWidget
 from .thumbs import ThumbsWidget
-from .denoise import DialogDenoise
 
 from pyseus.denoising.tv import TV
 import scipy.io

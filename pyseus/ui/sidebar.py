@@ -28,6 +28,7 @@ class InfoWidget(QFrame):
         self.path = QLineEdit("")
         self.scan = QLabel("")
         self.slice = QLabel("")
+        #self.path.setTextInteractionFlags(Qt.TextSelectableByMouse)
 
         info = QFrame()
         info.setLayout(QFormLayout())

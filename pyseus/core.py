@@ -19,7 +19,7 @@ from .settings import settings
 from .tools import AreaTool, LineTool
 from .ui import MainWindow
 from .ui.meta import MetaWindow
-from .ui.denoise import DialogDenoise
+from .ui.denoise import DenoiseDialog
 
 
 class PySeus():  # pylint: disable=R0902
@@ -263,7 +263,7 @@ class PySeus():  # pylint: disable=R0902
 
     def show_denoise_window(self):
         """Show the denoise window."""
-        self.denoise_window = DialogDenoise(self)
+        self.denoise_window = DenoiseDialog(self)
         self.denoise_window.show()
 
     # @TODO Move to dataset(formats) class to remove numpy from core class 
