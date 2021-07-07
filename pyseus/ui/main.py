@@ -21,7 +21,6 @@ from .view import ViewWidget
 from .sidebar import ConsoleWidget, InfoWidget, MetaWidget
 from .thumbs import ThumbsWidget
 
-from pyseus.denoising.tv import TV
 import scipy.io
 import matplotlib.pyplot as plt
 

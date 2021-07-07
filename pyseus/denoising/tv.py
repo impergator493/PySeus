@@ -1,5 +1,8 @@
 # TV-L1 implementation based on Matlab User method
 
+# define as class methods, then there is no need for initializing
+# but predefined values must be defined in another way then
+
 from pyseus.denoising import tgv
 import numpy as np
 
@@ -19,7 +22,34 @@ class TV():
 
         self.theta = 1.0
 
+
+    def tv_denoising_gen(self, func_denoise, dataset_noisy, params):
+        """ General Denoising Method for all TV types, 2D and 3D """
+
+        if dataset_noisy.ndim == 3:
+           
+            dataset_denoised = np.zeros(dataset_noisy.shape)
+            slices = dataset_noisy.shape[0]
+
+            for index in range(0, slices):
+                    args = (dataset_noisy[index,:,:], *params)
+                    dataset_denoised[index,:,:] = func_denoise(*args)
+
+            return dataset_denoised
+
+        elif dataset_noisy.ndim == 2:
+            
+            args = (dataset_noisy, *params)
+            dataset_denoised = func_denoise(*args)
+
+            return dataset_denoised
+
+        else:
+            raise ValueError("Dataset must be either 2D or 3D")
         
+
+
+
     # M: @TODO define as class method?
     def tv_denoising_L2(self,img, lambda_rat, iterations):
 

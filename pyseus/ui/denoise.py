@@ -9,6 +9,9 @@ from PySide2.QtCore import Qt
 import numpy
 import scipy
 
+import matplotlib.pyplot as plt
+
+
 
 
 
@@ -143,8 +146,10 @@ class DenoisedWindow(QDialog):
 
         self.app = app
         self.denoised = None
+        self.array_shape = None
         self.slice_id_selected = None
         self.whole_dataset = None
+
 
         self.view = DenoisedViewWidget(self.app, self)
         #self.view.widgetResizable()
@@ -160,25 +165,22 @@ class DenoisedWindow(QDialog):
 
         self.mode = Grayscale()
 
-    
-    # def denoised_callback(self, data):
+    # the problem is, that here still the thread is a seprated one and therefor and information
+    # cannot be shown graphically (matplotlib doesnt work either)
+    def denoised_callback(self,data_obj):
         
-    #     self.denoised = data
+        
+        self.denoised = data_obj
 
-    #     # can it be done with that variable? It must not be changed under any circumstances 
-    #     # otherwhise it is not consistent with the calculation! Lock dialog during calculation?
+        # if data.ndim == 3? 
+        # workaround too until 3D done in tv calc
+        if self.whole_dataset:
+            self.slice_id_selected = (self.app.dataset.slice_count() // 2)
+            denoised_displayed = self.denoised[self.slice_id_selected,:,:]
+        else:
+            denoised_displayed = self.denoised
 
-    #     # if data.ndim == 3?
-    #     if self.whole_dataset:
-
-    #         self.slice_id_selected = (self.app.dataset.slice_count() // 2)
-    #         denoised_displayed = data[self.slice_id_selected,:,:]
-
-    #     else:
-
-    #         denoised_displayed = data
-
-    #     self.display_image(denoised_displayed)
+        self.display_image(denoised_displayed)
 
        
     
@@ -188,49 +190,36 @@ class DenoisedWindow(QDialog):
          #print(self.grp_tv_type.checkedId())
 
         denoise = TV()
-        
         self.whole_dataset = whole_data
-
-        # self.denoised = numpy.zeros(noisy.shape)
-        # denoise_thread = ThreadingDenoised(self.denoised, denoise.tv_denoising_L2, self.cb, (noisy, lambd, iterations))
-        # denoise_thread.run()
-
-
 
         #noisy = scipy.io.loadmat('./tests/cameraman_noise.mat')['im']
 
         if self.whole_dataset:
-            noisy = self.app.dataset.get_pixeldata(-1)
-            
-            # @TODO generalize TV Class for acceptance of 3D or create own 3D method that calls 2D method?
-            # then there is no need anymore for 2 times  if tv_type case
+            dataset_noisy = self.app.dataset.get_pixeldata(-1)
+        else:
+            dataset_noisy = self.app.dataset.get_pixeldata(self.app.get_slice_id())
 
             #L1 needs a small lambda for denoising, better can be seen with saltn pepper noise of cameraman standard noised pic
-
-            self.denoised = numpy.zeros(noisy.shape)
-            for i in range(0, self.app.dataset.slice_count()):
-                if tv_type == 1:
-                    self.denoised[i,:,:] = denoise.tv_denoising_L1(noisy[i,:,:],lambd,iterations)
-                if tv_type == 2:
-                    self.denoised[i,:,:] = denoise.tv_denoising_huberROF(noisy[i,:,:],lambd,iterations,alpha)
-
-
-            self.slice_id_selected = (self.app.dataset.slice_count() // 2)
-            denoised_displayed = self.denoised[self.slice_id_selected,:,:]
-
-
         
-        else:    
-            noisy = self.app.dataset.get_pixeldata(self.app.get_slice_id())
-            
-            if tv_type == 1:
-                self.denoised = denoise.tv_denoising_L1(noisy,lambd,iterations)
-            if tv_type == 2:
-                self.denoised = denoise.tv_denoising_huberROF(noisy,lambd,iterations,alpha)
-            denoised_displayed = self.denoised
+        if tv_type == 1:
+            tv_type_func = denoise.tv_denoising_L1
+            params = (lambd, iterations)
+        if tv_type == 2:
+            tv_type_func = denoise.tv_denoising_huberROF
+            params = (lambd, iterations, alpha)
         
-          
-        self.display_image(denoised_displayed)
+        # should be done with .start() method, not with run
+        # otherwhise threading wont be activated
+        # the never approach seems to be the one with qobject and using movetothread
+        
+        thread_denoised = ThreadingDenoised(self, tv_type_func, dataset_noisy, params)
+        thread_denoised.output.connect(self.denoised_callback)
+        thread_denoised.start()
+
+        # better alternative would be movetothread use
+        # https://stackoverflow.com/questions/50622536/movetothread-vs-deriving-from-qthread-in-qt
+
+
        
         
      
