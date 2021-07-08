@@ -8,10 +8,11 @@ from pyseus.denoising.tv import TV
 
 class ThreadingDenoised(QThread):
     output = Signal(numpy.ndarray)
-    def __init__(self, parent_thr, function, dataset, params):
+    def __init__(self, parent_thr, function, dataset_type, dataset, params):
         QThread.__init__(self, parent=parent_thr)
         self.data_noisy = dataset
         self.data_denoised = None
+        self.dataset_type = dataset_type
         self.function = function
         self.params = params
         
@@ -21,7 +22,8 @@ class ThreadingDenoised(QThread):
     def run(self):
         # *args: Passing a Function Using with an arbitrary number of positional argument
         tv_class = TV()
-        self.data_denoised = tv_class.tv_denoising_gen(self.function, self.data_noisy, self.params)
+        self.data_denoised = tv_class.tv_denoising_gen(self.function, self.dataset_type, self.data_noisy, self.params)
+        #self.data_denoised = tv_class.tv_denoising_huberROF_3D(self.data_noisy, *self.params)
         self.output.emit(self.data_denoised)
 
         

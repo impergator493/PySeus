@@ -35,11 +35,12 @@ class DenoiseDialog(QDialog):
         self.grp_data_sel = QButtonGroup()
         self.btn_curr_slice = QRadioButton("Current Slice")
         self.btn_curr_slice.setChecked(True)
-        self.btn_all_slices = QRadioButton("Whole Dataset")
+        self.btn_all_slices_2D = QRadioButton("2D - Whole Dataset")
+        self.btn_all_slices_3D = QRadioButton("3D - Whole Dataset")
         self.grp_data_sel.addButton(self.btn_curr_slice,1)
-        self.grp_data_sel.addButton(self.btn_all_slices,2)
-        self.btn_all_slices_2D = QRadioButton("2D")
-        self.btn_all_slices_3D = QRadioButton("3D")
+        self.grp_data_sel.addButton(self.btn_all_slices_2D,2)
+        self.grp_data_sel.addButton(self.btn_all_slices_3D,3)
+
         
         # subgroup of radio buttons to dataset selection
         self.lab_denoise_type = QLabel("Denoising Type")
@@ -51,12 +52,7 @@ class DenoiseDialog(QDialog):
         self.grp_tv_type.addButton(self.btn_tv_ROF, 2)
 
         
-
-
-
         # form layout for parameter input for denoising algorithm
-        # TODO change Names of rows to labels, so that alpha row can be hidden completely with the name of the row
-        # not just the qlineedit field
         form = QFormLayout()
         self.qline_lambd = QLineEdit()
         #TV_lambda.setStyleSheet("color: white; background-color: darkgray")
@@ -90,7 +86,8 @@ class DenoiseDialog(QDialog):
         # organize items on GUI
         vlayout.addWidget(self.lab_data_sel)
         vlayout.addWidget(self.btn_curr_slice)
-        vlayout.addWidget(self.btn_all_slices)
+        vlayout.addWidget(self.btn_all_slices_2D)
+        vlayout.addWidget(self.btn_all_slices_3D)
         vlayout.addWidget(self.lab_denoise_type)
         vlayout.addWidget(self.btn_tv_L1)
         vlayout.addWidget(self.btn_tv_ROF)
@@ -115,8 +112,6 @@ class DenoiseDialog(QDialog):
                                     "}"
                                 )
 
-       
-    
 
     def signal_ok(self):
         
@@ -125,16 +120,14 @@ class DenoiseDialog(QDialog):
         lambd = float(self.qline_lambd.text())
         iterations = int(self.qline_iter.text())  
 
-        whole_data = None
         btn_data_id = self.grp_data_sel.checkedId()
-        if btn_data_id == 1:
-            whole_data = False
-        elif btn_data_id == 2:
-            whole_data = True
+        
+        #according to definition in init method, 1 = 2D, 2 = 2D - whole dataset, 3 = 3D - whole Dataset
+        dataset_type = btn_data_id
 
         tv_type = self.grp_tv_type.checkedId()
 
-        self.window_denoised.open_window(alpha,lambd,iterations,whole_data,tv_type)
+        self.window_denoised.open_window(alpha,lambd,iterations,dataset_type,tv_type)
 
 
 
@@ -148,7 +141,7 @@ class DenoisedWindow(QDialog):
         self.denoised = None
         self.array_shape = None
         self.slice_id_selected = None
-        self.whole_dataset = None
+        self.dataset_type = None
 
 
         self.view = DenoisedViewWidget(self.app, self)
@@ -172,12 +165,11 @@ class DenoisedWindow(QDialog):
         
         self.denoised = data_obj
 
-        # if data.ndim == 3? 
-        # workaround too until 3D done in tv calc
-        if self.whole_dataset:
+        
+        if self.dataset_type == 2 or self.dataset_type == 3:
             self.slice_id_selected = (self.app.dataset.slice_count() // 2)
             denoised_displayed = self.denoised[self.slice_id_selected,:,:]
-        else:
+        elif self.dataset_type == 1:
             denoised_displayed = self.denoised
 
         self.display_image(denoised_displayed)
@@ -185,18 +177,18 @@ class DenoisedWindow(QDialog):
        
     
 
-    def open_window(self,alpha,lambd,iterations,whole_data, tv_type):
+    def open_window(self,alpha,lambd,iterations,dataset_type, tv_type):
 
          #print(self.grp_tv_type.checkedId())
 
         denoise = TV()
-        self.whole_dataset = whole_data
+        self.dataset_type = dataset_type
 
         #noisy = scipy.io.loadmat('./tests/cameraman_noise.mat')['im']
 
-        if self.whole_dataset:
+        if self.dataset_type == 2 or self.dataset_type == 3:
             dataset_noisy = self.app.dataset.get_pixeldata(-1)
-        else:
+        elif self.dataset_type == 1:
             dataset_noisy = self.app.dataset.get_pixeldata(self.app.get_slice_id())
 
             #L1 needs a small lambda for denoising, better can be seen with saltn pepper noise of cameraman standard noised pic
@@ -205,6 +197,7 @@ class DenoisedWindow(QDialog):
             tv_type_func = denoise.tv_denoising_L1
             params = (lambd, iterations)
         if tv_type == 2:
+            #tv_type_func = denoise.tv_denoising_huberROF_3D
             tv_type_func = denoise.tv_denoising_huberROF
             params = (lambd, iterations, alpha)
         
@@ -212,7 +205,7 @@ class DenoisedWindow(QDialog):
         # otherwhise threading wont be activated
         # the never approach seems to be the one with qobject and using movetothread
         
-        thread_denoised = ThreadingDenoised(self, tv_type_func, dataset_noisy, params)
+        thread_denoised = ThreadingDenoised(self, tv_type_func, dataset_type, dataset_noisy, params)
         thread_denoised.output.connect(self.denoised_callback)
         thread_denoised.start()
 
@@ -243,7 +236,7 @@ class DenoisedWindow(QDialog):
      
     def refresh_slice(self, slice_inc):
         
-        if self.whole_dataset:
+        if self.dataset_type == 2 or self.dataset_type == 3:
             new_slice = self.slice_id_selected + slice_inc
             if 0 <= new_slice < self.app.dataset.slice_count():
                 self.display_image(self.denoised[new_slice])
