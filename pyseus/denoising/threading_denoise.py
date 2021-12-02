@@ -1,6 +1,7 @@
 from PySide2.QtCore import QThread, Signal
 import numpy
 from pyseus.denoising.tv import TV
+from pyseus.denoising.tgv import TGV
 
 
 # One could remove TV Class here and pass to init function also the denoise_gen itself 
@@ -8,22 +9,27 @@ from pyseus.denoising.tv import TV
 
 class ThreadingDenoised(QThread):
     output = Signal(numpy.ndarray)
-    def __init__(self, parent_thr, function, dataset_type, dataset, params):
+    def __init__(self, parent_thr, tv_class, tv_function, dataset_type, dataset, params):
         QThread.__init__(self, parent=parent_thr)
         self.data_noisy = dataset
         self.data_denoised = None
         self.dataset_type = dataset_type
-        self.function = function
+        self.tv_class = tv_class
+        self.tv_function = tv_function
         self.params = params
         
     
     
-    # cannot pass arguments to run, but to the contructor of the class 
+    # cannot pass arguments to run, but to the constructor of the class 
     def run(self):
         # *args: Passing a Function Using with an arbitrary number of positional argument
-        tv_class = TV()
-        self.data_denoised = tv_class.tv_denoising_gen(self.function, self.dataset_type, self.data_noisy, self.params)
-        #self.data_denoised = tv_class.tv_denoising_huberROF_3D(self.data_noisy, *self.params)
+        
+        if self.tv_class == TV:
+            self.data_denoised = self.tv_class.tv_denoising_gen(self.tv_function, self.dataset_type, self.data_noisy, self.params)
+        elif self.tv_class == TGV:
+            self.data_denoised = self.tv_class.tgv2_denoising(self.tv_function, self.dataset_type, self.data_noisy, self.params)
+        else:
+            raise TypeError("No valid denoising class selected")            
         self.output.emit(self.data_denoised)
 
         

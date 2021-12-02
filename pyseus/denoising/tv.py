@@ -21,11 +21,15 @@ class TV():
 
         self.theta = 1.0
 
+        # remove later, when functions are implemented as classes, not neccessary anymore, remove later if it works
+        #self.i = None
+        #self.iterations = None
+
 
     def tv_denoising_gen(self, func_denoise, dataset_type, dataset_noisy, params):
         """ General Denoising Method for all TV types, 2D and 3D """
 
-        # if 2D per slice is done, for loop is needed, for repeat 2D calculation of 3D dataset
+        # if 2D per slice is done, for-loop is needed, for repeating 2D calculation of 3D dataset
         if dataset_type == 2:
            
             dataset_denoised = np.zeros(dataset_noisy.shape)
@@ -89,7 +93,6 @@ class TV():
 
         return grad
 
-    #@TODO Implement 3D taken over primarly from 2D
     def divergence_img_3D(self, matrix_div):
         
         div = np.zeros_like(matrix_div)
@@ -219,16 +222,33 @@ class TV():
         return img_denoised
 
 
-    def tv_denoising_huberROF_3D(self,img, lambda_rat, iterations, alpha):
 
-        # maybe calculate later sigma on oneself?
-        # sigma = .....
+# H1 = L2 denoising
+# M: @TODO define as class method?
+    def tv_denoising_L2(self,img, lambda_rat, iterations):
 
-        # alpha = 0.05
+        # check dimensions, so that just 2D image is processed at once
+        # loop for multiple slices
+        # maybe for first try hand over 3D image but just select 2D slice?
 
+        #p_n+1
+        #u_n+1 = model_L2 e.g.
+        
+        grad_func = None
+        div_func = None
+
+        # automatic selection of correct gradient and divergence function
+        if img.ndim == 2:
+            grad_func = self.gradient_img
+            div_func = self.divergence_img
+        elif img.ndim == 3: 
+            grad_func = self.gradient_img_3D
+            div_func = self.divergence_img_3D
+        
         max_val = img.max()
 
         # for negative values also normalize?
+        # TODO add offset to negative and scale afterwards
         if max_val > 1.0:
             x_0 = img/max_val
         else:
@@ -236,21 +256,20 @@ class TV():
 
 
         # first initialized for x_0, y_0, x_bar_0
-        y_n = self.gradient_img_3D(x_0)
+        y_n = grad_func(x_0)
         x_n = x_0
         x_bar_n = x_n
 
         for i in range(iterations):
 
 
-            divisor = (1 + self.sigma * alpha)
-            y_n_half = (y_n + self.sigma*self.gradient_img_3D(x_bar_n))
-            y_n_half_norm = ((y_n_half[0]/divisor)**2 + (y_n_half[1]/divisor)**2)**0.5
+            y_n_half = y_n + self.sigma*grad_func(x_bar_n)
+            y_n_half_norm = (y_n_half[0]**2 + y_n_half[1]**2)**0.5
             y_n_half_norm[y_n_half_norm<1] = 1
-            y_n  = (y_n_half/divisor)/y_n_half_norm
+            y_n  = y_n_half/y_n_half_norm
 
             x_old = x_n
-            x_n = ((x_n + self.tau*self.divergence_img_3D(y_n)) + self.tau*lambda_rat*x_0) / (1 + self.tau * lambda_rat)
+            x_n = ((x_n - self.tau*(-div_func(y_n))) + self.tau*lambda_rat*x_0) / (1 + self.tau * lambda_rat)
             
             x_bar_n = x_n + self.theta*(x_n - x_old)
 
@@ -258,14 +277,3 @@ class TV():
         img_denoised = x_bar_n
 
         return img_denoised
-
-    def tv_alg1(self):
-        pass
-
-    def tv_alg2(self):
-        pass
-
-    def tv_alg3(self):
-        pass
-
-

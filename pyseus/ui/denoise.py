@@ -4,6 +4,7 @@ from PySide2.QtWidgets import QButtonGroup, QDesktopWidget, QDialog, QDialogButt
 
 from pyseus.denoising.threading_denoise import ThreadingDenoised
 from pyseus.denoising.tv import TV
+from pyseus.denoising.tgv import TGV
 from pyseus.modes.grayscale import Grayscale
 from PySide2.QtCore import Qt
 import numpy
@@ -48,32 +49,62 @@ class DenoiseDialog(QDialog):
         self.btn_tv_L1 = QRadioButton("L1")
         self.btn_tv_L1.setChecked(True)
         self.btn_tv_ROF = QRadioButton("HuberROF")
+        self.btn_tv_L2 = QRadioButton("L2")
+        self.btn_tgv2 = QRadioButton("TGV2")
         self.grp_tv_type.addButton(self.btn_tv_L1, 1)
         self.grp_tv_type.addButton(self.btn_tv_ROF, 2)
+        self.grp_tv_type.addButton(self.btn_tv_L2, 3)
+        self.grp_tv_type.addButton(self.btn_tgv2, 4)
 
         
         # form layout for parameter input for denoising algorithm
         form = QFormLayout()
         self.qline_lambd = QLineEdit()
-        #TV_lambda.setStyleSheet("color: white; background-color: darkgray")
         self.qline_lambd.setText("30")
         form.addRow("Lambda",self.qline_lambd)
+        
         self.qline_iter = QLineEdit()
         self.qline_iter.setText("100")
-        #TV_iter.setStyleSheet("color: white; background-color: darkgray")
         form.addRow("Iterations",self.qline_iter)
+
         self.qline_alpha = QLineEdit()
         self.qline_alpha.setText("0.03")
         size_pol = self.qline_alpha.sizePolicy()
         size_pol.setRetainSizeWhenHidden(True)
         self.qline_alpha.setSizePolicy(size_pol)
         self.qline_alpha.hide()
-        #TV_alpha.setStyleSheet("color: white; background-color: darkgray")
         form.addRow("Alpha",self.qline_alpha)
-        
+
+        self.qline_alpha0 = QLineEdit()
+        self.qline_alpha0.setText("0.5")
+        size_pol0 = self.qline_alpha0.sizePolicy()
+        size_pol0.setRetainSizeWhenHidden(True)
+        self.qline_alpha0.setSizePolicy(size_pol0)
+        self.qline_alpha0.hide()
+        form.addRow("Alpha0",self.qline_alpha0)
+
+        self.qline_alpha1 = QLineEdit()
+        self.qline_alpha1.setText("0.5")
+        size_pol1 = self.qline_alpha1.sizePolicy()
+        size_pol1.setRetainSizeWhenHidden(True)
+        self.qline_alpha1.setSizePolicy(size_pol1)
+        self.qline_alpha1.hide()
+        form.addRow("Alpha1",self.qline_alpha1)
         
         self.btn_tv_L1.clicked.connect(lambda: self.qline_alpha.hide())
         self.btn_tv_ROF.clicked.connect(lambda: self.qline_alpha.show())
+        self.btn_tv_L2.clicked.connect(lambda: self.qline_alpha.hide())
+        self.btn_tgv2.clicked.connect(lambda: self.qline_alpha.hide())
+
+        self.btn_tv_L1.clicked.connect(lambda: self.qline_alpha0.hide())
+        self.btn_tv_ROF.clicked.connect(lambda: self.qline_alpha0.hide())
+        self.btn_tv_L2.clicked.connect(lambda: self.qline_alpha0.hide())
+        self.btn_tgv2.clicked.connect(lambda: self.qline_alpha0.show())
+
+        self.btn_tv_L1.clicked.connect(lambda: self.qline_alpha1.hide())
+        self.btn_tv_ROF.clicked.connect(lambda: self.qline_alpha1.hide())
+        self.btn_tv_L2.clicked.connect(lambda: self.qline_alpha1.hide())
+        self.btn_tgv2.clicked.connect(lambda: self.qline_alpha1.show())
         
         
         # function without brackets just connects the function, but does not call it
@@ -91,6 +122,8 @@ class DenoiseDialog(QDialog):
         vlayout.addWidget(self.lab_denoise_type)
         vlayout.addWidget(self.btn_tv_L1)
         vlayout.addWidget(self.btn_tv_ROF)
+        vlayout.addWidget(self.btn_tv_L2)
+        vlayout.addWidget(self.btn_tgv2)
         vlayout.addWidget(self.box_btns)
 
         hlayout.addLayout(vlayout)
@@ -117,6 +150,8 @@ class DenoiseDialog(QDialog):
         
         # @TODO check wether input types are okay
         alpha = float(self.qline_alpha.text())
+        alpha0 = float(self.qline_alpha0.text())
+        alpha1 = float(self.qline_alpha1.text())
         lambd = float(self.qline_lambd.text())
         iterations = int(self.qline_iter.text())  
 
@@ -127,7 +162,7 @@ class DenoiseDialog(QDialog):
 
         tv_type = self.grp_tv_type.checkedId()
 
-        self.window_denoised.open_window(alpha,lambd,iterations,dataset_type,tv_type)
+        self.window_denoised.open_window(alpha, alpha0, alpha1, lambd, iterations,dataset_type,tv_type)
 
 
 
@@ -177,11 +212,11 @@ class DenoisedWindow(QDialog):
        
     
 
-    def open_window(self,alpha,lambd,iterations,dataset_type, tv_type):
+    def open_window(self,alpha, alpha0, alpha1, lambd,iterations,dataset_type, tv_type):
 
          #print(self.grp_tv_type.checkedId())
 
-        denoise = TV()
+        
         self.dataset_type = dataset_type
 
         #noisy = scipy.io.loadmat('./tests/cameraman_noise.mat')['im']
@@ -194,26 +229,31 @@ class DenoisedWindow(QDialog):
             #L1 needs a small lambda for denoising, better can be seen with saltn pepper noise of cameraman standard noised pic
         
         if tv_type == 1:
-            tv_type_func = denoise.tv_denoising_L1
+            tv_class = TV()
+            tv_type_func = tv_class.tv_denoising_L1
             params = (lambd, iterations)
         if tv_type == 2:
             #tv_type_func = denoise.tv_denoising_huberROF_3D
-            tv_type_func = denoise.tv_denoising_huberROF
+            tv_class = TV()
+            tv_type_func = tv_class.tv_denoising_huberROF
             params = (lambd, iterations, alpha)
+        if tv_type == 3:
+            #tv_type_func = denoise.tv_denoising_huberROF_3D
+            tv_class = TV()
+            tv_type_func = tv_class.tv_denoising_L2
+            params = (lambd, iterations)
+        if tv_type == 4:
+            #tv_type_func = denoise.tv_denoising_huberROF_3D
+            tv_class = TGV()
+            tv_type_func = tv_class.tgv2_denoising
+            params = (alpha0, alpha1, iterations)
         
         # should be done with .start() method, not with run
         # otherwhise threading wont be activated
-        # the never approach seems to be the one with qobject and using movetothread
         
-        thread_denoised = ThreadingDenoised(self, tv_type_func, dataset_type, dataset_noisy, params)
+        thread_denoised = ThreadingDenoised(self, tv_class, tv_type_func, dataset_type, dataset_noisy, params)
         thread_denoised.output.connect(self.denoised_callback)
         thread_denoised.start()
-
-        # better alternative would be movetothread use
-        # https://stackoverflow.com/questions/50622536/movetothread-vs-deriving-from-qthread-in-qt
-
-
-       
         
      
 
