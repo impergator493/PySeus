@@ -6,32 +6,38 @@ import scipy
 import scipy.sparse as sp
 
 # @TODO: womöglich als methode in TV klasse inkludieren?
-class TGV(): 
+class TGV_3D(): 
 
 
     def __init__(self):
         pass
 
 
-    def _make_nabla(self,M, N):
-        row = np.arange(0, M * N)
-        dat = np.ones(M * N)
-        col = np.arange(0, M * N).reshape(M, N)
-        col_xp = np.hstack([col[:, 1:], col[:, -1:]])
-        col_yp = np.vstack([col[1:, :], col[-1:, :]])
+    def _make_nabla(self,L, M, N):
+        row = np.arange(0, L * M * N)
+        dat = np.ones(L* M * N)
+        col = np.arange(0, M * N * L).reshape(L, M, N)
+        col_xp = np.concatenate([col[:, :, 1:], col[:, :, -1:]], axis = 2)
+        col_yp = np.concatenate([col[:, 1:, :], col[:, -1:, :]], axis = 1)
+        col_zp = np.concatenate([col[1:, :, :], col[-1:, :, :]], axis = 0)
 
-        # das sind darstellungen von gradienten operatoren in vektorformen, wsl um schneller berechnen zu können
-        # col_xp hat die um 1 verschobenen einträge nach links, col die originalen. diese werden voneinander abgezogen
-        # um die differenz bilden zu können.
-        nabla_x = scipy.sparse.coo_matrix((dat, (row, col_xp.flatten())), shape=(M * N, M * N)) - \
-                scipy.sparse.coo_matrix((dat, (row, col.flatten())), shape=(M * N, M * N))
+        # flatten vector contains all the indices for the positions where -1 and 1 should be placed to calculate
+        # gradient for every pixel in all 3 dimensions.
 
-        nabla_y = scipy.sparse.coo_matrix((dat, (row, col_yp.flatten())), shape=(M * N, M * N)) - \
-                scipy.sparse.coo_matrix((dat, (row, col.flatten())), shape=(M * N, M * N))
+        nabla_x = scipy.sparse.coo_matrix((dat, (row, col_xp.flatten())), shape=(L * M * N, L * M * N)) - \
+                scipy.sparse.coo_matrix((dat, (row, col.flatten())), shape=(L * M * N, L * M * N))
 
-        nabla = scipy.sparse.vstack([nabla_x, nabla_y])
+        nabla_y = scipy.sparse.coo_matrix((dat, (row, col_yp.flatten())), shape=(L * M * N, L * M * N)) - \
+                scipy.sparse.coo_matrix((dat, (row, col.flatten())), shape=(L * M * N, L * M * N))
+        
+        nabla_z = scipy.sparse.coo_matrix((dat, (row, col_zp.flatten())), shape=(L * M * N, L * M * N)) - \
+                scipy.sparse.coo_matrix((dat, (row, col.flatten())), shape=(L * M * N, L * M * N))
 
-        return nabla, nabla_x, nabla_y
+
+
+        nabla = scipy.sparse.vstack([nabla_x, nabla_y, nabla_z])
+
+        return nabla, nabla_x, nabla_y, nabla_z
 
 
     def compute_Wi(self, W, i):
@@ -43,7 +49,7 @@ class TGV():
         @param i: index of the observation
         @return:
         """
-        Wi = -np.sum(W[:, :, :i], axis=-1) + np.sum(W[:, :, i:], axis=-1)
+        Wi = -np.sum(W[:,:, :, :i], axis=-1) + np.sum(W[:,:, :, i:], axis=-1)
         return Wi
 
 
@@ -66,16 +72,19 @@ class TGV():
         return prox
 
 
-    def make_K(self, M, N):
+    def make_K(self, L, M, N):
         """
         @param M:
         @param N:
         @return: the K operator as described in Equation (5)
         """
-        nabla, nabla_x, nabla_y = self._make_nabla(M, N)
-        neg_I = sp.identity(M*N) * -1
+        nabla, nabla_x, nabla_y, nabla_z = self._make_nabla(L, M, N)
+        neg_I = sp.identity(L*M*N) * -1
 
-        K = sp.bmat([[nabla_x, neg_I, None], [nabla_y, None, neg_I], [None, nabla_x, None], [None, nabla_y, None], [None, None, nabla_x], [None, None, nabla_y]])
+        K = sp.bmat([[nabla_x, neg_I, None, None], [nabla_y, None, neg_I, None], [nabla_z, None, None, neg_I], \
+            [None, nabla_x, None, None], [None, nabla_y, None, None], [None, nabla_z, None, None], \
+            [None, None, nabla_x, None], [None, None, nabla_y, None], [None, None, nabla_z, None],
+            [None, None, None, nabla_x], [None, None, None, nabla_y], [None, None, None, nabla_z]])
 
         return K
 
@@ -106,7 +115,7 @@ class TGV():
     #     return energy_value
 
 
-    def tgv2_denoising(self,img_noisy, alpha0, alpha1, iterations):
+    def tgv2_3D_denoising(self,img_noisy, alpha0, alpha1, iterations):
         """
         @param f: the K observations of shape MxNxK
         @param alpha: tuple containing alpha1 and alpha2
@@ -114,35 +123,37 @@ class TGV():
         @return: tuple of u with shape MxN and v with shape 2xMxN
         """
         # K = 1 just for fast experiment, bc it was used for TGV fusion before.
+        # Could it be used for TGV Reco, as this is also somehow the same with several pcitures from one and 
+        # the same thing?
         f = np.zeros(img_noisy.shape + (1,))
-        f[:,:,0] = img_noisy
+        f[:,:,:,0] = img_noisy
 
-        M, N, K = f.shape
-        img = img_noisy.reshape(M*N, K)
+        L, M, N, K = f.shape
+        img = img_noisy.reshape(L*M*N, K)
 
         # make operators
-        k = self.make_K(M,N)
+        k = self.make_K(L,M,N)
 
         # Used for calculation of the dataterm projection
-        W = np.ones((M, N, K))
+        W = np.ones((L, M, N, K))
         Wis = np.asarray([self.compute_Wi(W, i) for i in range(K)])
-        Wis = Wis.transpose(1, 2, 0)
-        Wis = Wis.reshape(M * N, K)
+        Wis = Wis.transpose(1, 2, 3, 0)
+        Wis = Wis.reshape(L * M * N, K)
 
         # Lipschitz constant of K
-        L = np.sqrt(12)
+        Lip = np.sqrt(12)
 
         # initialize primal variables
-        u = np.zeros(M*N)
-        v = np.zeros(2*M*N)
+        u = np.zeros(L*M*N)
+        v = np.zeros(3*L*M*N)
 
         # initialize dual variables
-        p = np.zeros(2*M*N)
-        q = np.zeros(4*M*N)
+        p = np.zeros(3*L*M*N)
+        q = np.zeros(9*L*M*N)
 
         # primal and dual step size
-        tau = 1 / L
-        sigma = 1 / L
+        tau = 1 / Lip
+        sigma = 1 / Lip
 
         u_vec = np.concatenate([u, v])
         p_vec = np.concatenate([p, q])
@@ -165,18 +176,18 @@ class TGV():
             # prox_sum_l1(x, f, tau, Wis)
             # where x is the parameter of the projection function i.e. u^(n+(1/2))
             x = u_veclist[it] - tau * k.T @ p_veclist[it]
-            u_list.append(self.prox_sum_l1(x[0:M*N], img, tau, Wis))
-            v_list.append(x[M*N:3*M*N])
+            u_list.append(self.prox_sum_l1(x[0:L*M*N], img, tau, Wis))
+            v_list.append(x[L*M*N:12*L*M*N])
             u_veclist.append(np.concatenate([u_list[it], v_list[it]]))
 
             p_temp = p_veclist[it] + sigma*k@(2*u_veclist[it+1] - u_veclist[it])
-            p_list.append(np.ravel(self.proj_ball(p_temp[0:2*M*N].reshape(2, M*N), alpha0)))
-            q_list.append(np.ravel(self.proj_ball(p_temp[2*M*N:6*M*N].reshape(4, M*N), alpha1)))
+            p_list.append(np.ravel(self.proj_ball(p_temp[0:3*L*M*N].reshape(3, L*M*N), alpha0)))
+            q_list.append(np.ravel(self.proj_ball(p_temp[3*L*M*N:12*L*M*N].reshape(9, L*M*N), alpha1)))
             p_veclist.append(np.concatenate([p_list[it], q_list[it]]))
 
             #energy_list.append(energy(u_list[it], v_list[it], alpha1, alpha2, img, nabla, nabla_tilde, M, N))
 
-        u = u_list[iterations-1].reshape(M,N)
+        u = u_list[iterations-1].reshape(L,M,N)
         img_denoised = u
         #v = v_list[iterations-1].reshape(2, M, N)
 

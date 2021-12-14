@@ -5,6 +5,7 @@ from PySide2.QtWidgets import QButtonGroup, QDesktopWidget, QDialog, QDialogButt
 from pyseus.denoising.threading_denoise import ThreadingDenoised
 from pyseus.denoising.tv import TV
 from pyseus.denoising.tgv import TGV
+from pyseus.denoising.tgv_3D import TGV_3D
 from pyseus.modes.grayscale import Grayscale
 from PySide2.QtCore import Qt
 import numpy
@@ -246,6 +247,11 @@ class DenoisedWindow(QDialog):
             #tv_type_func = denoise.tv_denoising_huberROF_3D
             tv_class = TGV()
             tv_type_func = tv_class.tgv2_denoising
+            params = (alpha0, alpha1, iterations)
+        #@TODO change it temporarily to 4 for trying, then include 3D in normal TGV class
+        if tv_type == 5:
+            tv_class = TGV_3D()
+            tv_type_func = tv_class.tgv2_3D_denoising
             params = (alpha0, alpha1, iterations)
         
         # should be done with .start() method, not with run
