@@ -43,6 +43,9 @@ class TGV():
         @param i: index of the observation
         @return:
         """
+
+        #if there is just one K ist just makes the sum over this K, which is in fact
+        # the same as if there would be just a 2D array full of ones with (M,N,)
         Wi = -np.sum(W[:, :, :i], axis=-1) + np.sum(W[:, :, i:], axis=-1)
         return Wi
 
@@ -57,10 +60,20 @@ class TGV():
         @param Wis: MN x K
         @param f: MN x K
         """
+        # if K is 1, no new axis is needed and also
+        # Wis is just a vector full of ones with length(M*N,K) = (M*N,1)
+        # hier kann also einfach tau mit ones(M*N) multipliziert werden
+        # und np.newaxis gelöscht werden
         pis = u[..., np.newaxis] + tau * Wis
 
+        # f, pis haben alle bei K=1 shape(M*N,1)
+        # var hat shape(M*N,2)
         var = np.concatenate((f, pis), axis=-1)
 
+        # bei nur 2 einträgen (f, pis) macht median dasselbe wie mean und nimmt den mittelwert
+        # egal wieviele einträge, über eine achse nimmt er nur den median und diese
+        # dimension verschwindet dann sogar, d.h. aus shape (M*N,2) wird dann (M*N,)
+        # Rückgabe hat also K dimension wieder weniger
         prox = np.median(var, axis=-1)
 
         return prox
@@ -124,6 +137,8 @@ class TGV():
         k = self.make_K(M,N)
 
         # Used for calculation of the dataterm projection
+        # if K is just 1, there is no need for computation in 
+        # function, just keep W without K
         W = np.ones((M, N, K))
         Wis = np.asarray([self.compute_Wi(W, i) for i in range(K)])
         Wis = Wis.transpose(1, 2, 0)
