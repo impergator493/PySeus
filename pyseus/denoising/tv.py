@@ -29,6 +29,7 @@ class TV():
     def tv_denoising_gen(self, func_denoise, dataset_type, dataset_noisy, params):
         """ General Denoising Method for all TV types, 2D and 3D """
 
+
         # if 2D per slice is done, for-loop is needed, for repeating 2D calculation of 3D dataset
         if dataset_type == 2:
            
@@ -172,8 +173,6 @@ class TV():
     # Alg1, Alg2 not possible like with L1, L2?
     def tv_denoising_huberROF(self,img, lambda_rat, iterations, alpha):
 
-        # maybe calculate later sigma on oneself?
-        # sigma = .....
 
         # alpha = 0.05
 
