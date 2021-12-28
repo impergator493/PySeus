@@ -24,6 +24,10 @@ class TGV():
         # flatten vector contains all the indices for the positions where -1 and 1 should be placed to calculate
         # gradient for every pixel in all 3 dimensions.
 
+        # for every pixel (pixel amount L*M*N) that should be calculated, a sparse vector (length L*M*N) is generated 
+        # which just contains the 1 and -1 on the 
+        # specific place and is 0 otherwhise. Thats why its a (L*M*N, L*M*N) matrix
+
         nabla_x = scipy.sparse.coo_matrix((dat, (row, col_xp.flatten())), shape=(L * M * N, L * M * N)) - \
                 scipy.sparse.coo_matrix((dat, (row, col.flatten())), shape=(L * M * N, L * M * N))
 
@@ -171,28 +175,27 @@ class TGV():
         u_vec = np.concatenate([u, v])
         p_vec = np.concatenate([p, q])
 
-        u_veclist = [u_vec]
-        p_veclist = [p_vec]
-        u_list = []
-        v_list = []
-        p_list = []
-        q_list = []
+        
+        # @ is matrix multiplication of 2 variables
 
         for it in range(0, iterations):
             # To calculate the data term projection you can use:
             # prox_sum_l1(x, f, tau, Wis)
             # where x is the parameter of the projection function i.e. u^(n+(1/2))
-            x = u_veclist[it] - tau * k.T @ p_veclist[it]
-            u_list.append(self.prox_sum_l1(x[0:L*M*N], img, tau))
-            v_list.append(x[L*M*N:12*L*M*N])
-            u_veclist.append(np.concatenate([u_list[it], v_list[it]]))
+            x = u_vec - tau * k.T @ p_vec
+            u = self.prox_sum_l1(x[0:L*M*N], img, tau)
+            v = x[L*M*N:12*L*M*N]
+            u_vec_old = u_vec
+            u_vec = np.concatenate([u, v])
 
-            p_temp = p_veclist[it] + sigma*k@(2*u_veclist[it+1] - u_veclist[it])
-            p_list.append(np.ravel(self.proj_ball(p_temp[0:3*L*M*N].reshape(3, L*M*N), alpha0)))
-            q_list.append(np.ravel(self.proj_ball(p_temp[3*L*M*N:12*L*M*N].reshape(9, L*M*N), alpha1)))
-            p_veclist.append(np.concatenate([p_list[it], q_list[it]]))
+            u_bar = 2*u_vec - u_vec_old
 
-        u = u_list[iterations-1].reshape(L,M,N)
+            p_temp = p_vec + sigma*k@(u_bar)
+            p = np.ravel(self.proj_ball(p_temp[0:3*L*M*N].reshape(3, L*M*N), alpha0))
+            q = np.ravel(self.proj_ball(p_temp[3*L*M*N:12*L*M*N].reshape(9, L*M*N), alpha1))
+            p_vec = np.concatenate([p, q])
+
+        u = u.reshape(L,M,N)
            
         return u
 
