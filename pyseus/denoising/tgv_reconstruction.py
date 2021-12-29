@@ -45,7 +45,7 @@ class TGV_Reco():
         return nabla, nabla_x, nabla_y, nabla_z
 
 
-    def prox_sum_l1(self, u, f, tau):
+    def prox_G(self, x, uk, tau, gamma):
         """
         Used for calculation of the dataterm projection
 
@@ -56,13 +56,14 @@ class TGV_Reco():
         @param f: MN x K
         """
       
-        pis = u[...] + tau
+        prox = (uk*tau/gamma + x)/(1 + tau/gamma)
 
         # bei nur 2 einträgen (f, pis) macht median dasselbe wie mean und nimmt den mittelwert
         # egal wieviele einträge, über eine achse nimmt er nur den median und diese
         # dimension verschwindet dann sogar, d.h. aus shape (M*N,2) wird dann (M*N,)
         # Rückgabe hat also K dimension wieder weniger
-        prox = np.median((f,pis), axis=0)
+        # pis = u[...] + tau
+        # prox = np.median((uk,pis), axis=0)
 
         return prox
 
@@ -84,15 +85,15 @@ class TGV_Reco():
         return K
 
 
-    def proj_ball(self, Y, lamb):
+    def proj_ball(self, Z, alpha):
         """
         Projection to a ball as described in Equation (6)
         @param Y: either 2xMN or 4xMN
-        @param lamb: scalar hyperparameter lambda
+        @param alpha: scalar hyperparameter alpha
         @return: projection result either 2xMN or 4xMN
         """
-        norm = np.linalg.norm(Y, axis=0)
-        projection = Y / np.maximum(1, 1/lamb * norm)
+        norm = np.linalg.norm(Z, axis=0)
+        projection = Z / np.maximum(1, 1/alpha * norm)
     
         return projection
 
@@ -106,8 +107,6 @@ class TGV_Reco():
         u - current reconstructed sample in spatial domain, size (L,M,N)
         sens_c - coil sensitivities 
         """
-        
-
         return np.fft.fftn((sens_c * u), axes=(-3,-2,-1))
         
 
@@ -122,6 +121,7 @@ class TGV_Reco():
         """
         
         r_IFT = sens_c.conjugate() * np.fft.ifftn(r,axes=(-3,-2,-1))
+
         
         return np.sum( r_IFT, axis=0)
 
@@ -132,9 +132,10 @@ class TGV_Reco():
 
    # if its a big dataset, a lot of RAM is needed because all the raw data to process will be 
     # stored in the RAM
-    def tgv2_reconstruction_gen(self, dataset_type, data_raw, params):
+    def tgv2_reconstruction_gen(self, dataset_type, data_raw, data_coils, alpha0, alpha1, iter):
 
-        
+        params = (alpha0,alpha1,iter)
+
         if dataset_type == 1:
             
             # prepare artifical 3D dataset(1,M,N) for 2D image (M,N), because to be universal applicable 
@@ -144,20 +145,20 @@ class TGV_Reco():
 
             # dat_real, imag are of dimension (C*L*M*N), if 2D L is just length 1
             # make return value 2D array again
-            dataset_denoised = self.tgv2_reconstruction(data_raw, *params)[0,:,:]
+            dataset_denoised = self.tgv2_reconstruction(data_raw, data_coils, *params)[0,:,:]
 
             return dataset_denoised
 
         elif dataset_type == 2:
             
-            dataset_denoised = np.zeros((data_raw.shape[-3:]))
-            slices = data_raw.shape[0]
+            dataset_denoised = np.zeros((data_raw.shape[-3:]), dtype=complex)
+            slices = data_raw.shape[1]
 
             # added newaxis, to have a 3D array altough it just contains 2D entries (3rd dim is length=1)
             # for every slice a new 3D array is build with the 0 axis with a length of 1
             for index in range(0, slices):
                 
-                dataset_denoised[index,:,:] = self.tgv2_reconstruction(data_raw[:,index,:,:], *params)[0,:,:]
+                dataset_denoised[index,:,:] = self.tgv2_reconstruction(data_raw[:,index:index+1,:,:], data_coils[:,index:index+1,:,:], *params)[0,:,:]
 
             return dataset_denoised
 
@@ -165,7 +166,7 @@ class TGV_Reco():
         elif dataset_type == 3:
             # keep dataset just as it is, if its allready 3D -> dataset_noisy = dataset_noisy
 
-            dataset_denoised = self.tgv2_reconstruction(data_raw, *params)
+            dataset_denoised = self.tgv2_reconstruction(data_raw, data_coils, *params)
 
             return dataset_denoised
 
@@ -181,6 +182,12 @@ class TGV_Reco():
         @param maxit: maximum number of iterations
         @return: tuple of u with shape MxN and v with shape 2xMxN
         """
+
+        # Parameters
+        gamma = 10
+        beta = 1
+        theta = 1
+        mu = 0.5
 
         # d is the variable which contains all the k-space data for the sample for all coils
         # and has dimension Nc*Nz*Ny*Nx
@@ -246,7 +253,7 @@ class TGV_Reco():
             DAHr[0:L*M*N] = np.ravel(self.DAH(r.reshape(C,L,M,N), sens_coils))
             
             x = u_vec - tau * (k.T @ p_vec + DAHr)
-            u = self.prox_sum_l1(x[0:L*M*N], uk, tau)
+            u = self.prox_G(x[0:L*M*N], uk, tau, gamma)
             v = x[L*M*N:12*L*M*N]
             u_vec_old = u_vec
             u_vec = np.concatenate([u, v])

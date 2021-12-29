@@ -13,14 +13,14 @@ print("Attributes: ", dict(f1.attrs))
 # Inhalt der Attribute
 
 
-real_dat = f1['real_dat'][9,:,64:65,:,:]
-imag_dat = f1['imag_dat'][9,:,64:65,:,:]
+real_dat = f1['real_dat'][9,:,64:70,:,:]
+imag_dat = f1['imag_dat'][9,:,64:70,:,:]
 
 img = real_dat + imag_dat*(1j)
 
 print(img.shape, type(img[0,0]))
 
-coils = f1['Coils'][:, 64:65,:,:]
+coils = f1['Coils'][:, 64:70,:,:]
 
 # sparse matrix, for having a sparse k-space to demonstrate
 sp_mat = np.random.choice([0,1], size=(224,224), p=[0.0, 1.0])
@@ -57,21 +57,14 @@ print("Max and Min Value Spatial domain: ", abs(img_spat).min(), abs(img_spat).m
 
 obj = TGV_Reco()
 
-denoised_reco = obj.tgv2_reconstruction_gen(1,img, (coils, 0.005, 0.002,10))
+denoised_reco = obj.tgv2_reconstruction_gen(2,img, coils, 0.005, 0.002,1)
 
 np.save('denoise_u_veclist', denoised_reco)
 
+# plt für 2D several slices
 plt.figure()
-plt.subplot(1,2,1)
-plt.imshow(abs(denoised_reco), cmap='gray')
+for i in range(1,7):
+    plt.subplot(1,6,i)
+    plt.imshow(abs(denoised_reco[i-1,:,:]), cmap='gray')
 plt.show()
 
-
-# noisy_3D = np.ones((1,256,256))
-# noisy_3D[0,:,:] = noisy
-
-# denoised_3D = obj.tgv2_denoising(noisy_3D,0.1,200,20)
-
-# plt.subplot(1,2,2)
-# plt.imshow(denoised_3D[0,:,:], cmap='gray')
-# plt.show()
