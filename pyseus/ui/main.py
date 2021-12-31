@@ -171,12 +171,15 @@ class MainWindow(QMainWindow):  # pylint: disable=R0902
 
         # @TODO generate menu entries the same way as tool menu
         self.denoise_menu = menu_bar.addMenu("&Denoise")
-        ami(self.denoise_menu, "TV",
+        ami(self.denoise_menu, "Denoising",
             self._open_dialog_tv, "---")
-        ami(self.denoise_menu, "TGV",
+
+
+        self.denoise_menu = menu_bar.addMenu("&Reconstruct")
+        ami(self.denoise_menu, "Reconstruction",
             lambda: None , "---")
-        ami(self.denoise_menu, "H1",
-            lambda: None ,"---")
+
+
 
 
         # About action is its own top level menu
@@ -196,7 +199,10 @@ class MainWindow(QMainWindow):  # pylint: disable=R0902
 
     def _action_quit(self):
         self.app.qt_app.quit()
-        sys.exit()
+        sys.exit(0)
+
+    def closeEvent(self,event):
+        self._action_quit()
 
     def _action_open(self):
         path, _ = QFileDialog.getOpenFileName(None, "Open file",

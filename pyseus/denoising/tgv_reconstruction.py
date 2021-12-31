@@ -132,9 +132,9 @@ class TGV_Reco():
 
    # if its a big dataset, a lot of RAM is needed because all the raw data to process will be 
     # stored in the RAM
-    def tgv2_reconstruction_gen(self, dataset_type, data_raw, data_coils, alpha0, alpha1, iter):
+    def tgv2_reconstruction_gen(self, dataset_type, data_raw, data_coils, lambd, alpha0, alpha1, iter):
 
-        params = (alpha0,alpha1,iter)
+        params = (lambd, alpha0,alpha1,iter)
 
         if dataset_type == 1:
             
@@ -175,7 +175,7 @@ class TGV_Reco():
             raise TypeError("Dataset must be either 2D or 3D and matching the correct dataset type")
         
 
-    def tgv2_reconstruction(self, img_kspace, sens_coils, alpha0, alpha1, iterations):
+    def tgv2_reconstruction(self, img_kspace, sens_coils, lambd, alpha0, alpha1, iterations):
         """
         @param f: the K observations of shape MxNxK
         @param alpha: tuple containing alpha1 and alpha2
@@ -219,6 +219,9 @@ class TGV_Reco():
         tau = 1 / Lip
         sigma = 1 / Lip
 
+        tau_n = tau
+        tau_n_old = tau
+
         # array of array (still shape (xxxx, ))
         u_vec = np.concatenate([u, v])
         p_vec = np.concatenate([p, q])
@@ -258,16 +261,23 @@ class TGV_Reco():
             u_vec_old = u_vec
             u_vec = np.concatenate([u, v])
 
-            u_bar = 2*u_vec - u_vec_old
+            #tau_n = tau_n_old*(1+theta)**0.5
+            #theta = tau_n/tau_n_old
+            #sigma = beta * tau_n
+
+
+            u_bar = u_vec + theta * (u_vec - u_vec_old)
 
             p_temp = p_vec + sigma*k@(u_bar)
-            p = np.ravel(self.proj_ball(p_temp[0:3*L*M*N].reshape(3, L*M*N), alpha0))
-            q = np.ravel(self.proj_ball(p_temp[3*L*M*N:12*L*M*N].reshape(9, L*M*N), alpha1))
+            p = np.ravel(self.proj_ball(p_temp[0:3*L*M*N].reshape(3, L*M*N), alpha0*lambd))
+            q = np.ravel(self.proj_ball(p_temp[3*L*M*N:12*L*M*N].reshape(9, L*M*N), alpha1*lambd))
             p_vec = np.concatenate([p, q])
             
 
             r_temp = r + np.ravel(sigma*(self.DA(u_bar[0:L*M*N].reshape(L,M,N), sens_coils)-d))
             r = np.ravel(self.proj_L2(r_temp, sigma, np.ravel(d)))
+
+            #tau_n = tau_n * mu
 
 
         u = u.reshape(L,M,N)

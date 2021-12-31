@@ -57,7 +57,7 @@ print("Max and Min Value Spatial domain: ", abs(img_spat).min(), abs(img_spat).m
 
 obj = TGV_Reco()
 
-denoised_reco = obj.tgv2_reconstruction_gen(2,img, coils, 0.005, 0.002,1)
+denoised_reco = obj.tgv2_reconstruction_gen(2,img, coils, 0.005, 2, 1,10)
 
 np.save('denoise_u_veclist', denoised_reco)
 

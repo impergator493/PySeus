@@ -1,4 +1,4 @@
-from PySide2.QtWidgets import QButtonGroup, QDesktopWidget, QDialog, QDialogButtonBox, QFormLayout, QLayout, QLineEdit, QMainWindow, QAction, QLabel, QFileDialog, \
+from PySide2.QtWidgets import QBoxLayout, QButtonGroup, QDesktopWidget, QDialog, QDialogButtonBox, QFormLayout, QGroupBox, QLayout, QLineEdit, QMainWindow, QAction, QLabel, QFileDialog, \
                               QFrame, QPushButton, QRadioButton, QScrollArea, QSizePolicy, QVBoxLayout, QHBoxLayout, QWidget
 
 
@@ -25,13 +25,16 @@ class DenoiseDialog(QDialog):
         self.window_denoised = DenoisedWindow(app)
 
 
+        vlayout_sel_par = QVBoxLayout()
+        vlayout_sel = QVBoxLayout()
+        vlayout_type = QVBoxLayout()
+        grp_box_sel = QGroupBox("Data Selection")
+        grp_box_type = QGroupBox("Denoising Type")
 
-        vlayout = QVBoxLayout()
         hlayout = QHBoxLayout()
         self.setWindowTitle("Denoise")
         
         # subgroup of radio buttons for data selection
-        self.lab_data_sel = QLabel("Data Selection")
         self.grp_data_sel = QButtonGroup()
         self.btn_curr_slice = QRadioButton("Current Slice")
         self.btn_curr_slice.setChecked(True)
@@ -43,7 +46,6 @@ class DenoiseDialog(QDialog):
 
         
         # subgroup of radio buttons to dataset selection
-        self.lab_denoise_type = QLabel("Denoising Type")
         self.grp_tv_type = QButtonGroup()
         self.btn_tv_L1 = QRadioButton("L1")
         self.btn_tv_L1.setChecked(True)
@@ -54,41 +56,45 @@ class DenoiseDialog(QDialog):
         self.grp_tv_type.addButton(self.btn_tv_ROF, 2)
         self.grp_tv_type.addButton(self.btn_tv_L2, 3)
         self.grp_tv_type.addButton(self.btn_tgv2, 4)
-
         
         # form layout for parameter input for denoising algorithm
-        form = QFormLayout()
+        
+        vlayout_par = QVBoxLayout()
+        grp_box_par = QGroupBox("Parameters")
+
+        v_form1 = QFormLayout()
         self.qline_lambd = QLineEdit()
         self.qline_lambd.setText("30")
-        form.addRow("Lambda",self.qline_lambd)
+        v_form1.addRow("Lambda",self.qline_lambd)
         
         self.qline_iter = QLineEdit()
         self.qline_iter.setText("100")
-        form.addRow("Iterations",self.qline_iter)
+        v_form1.addRow("Iterations",self.qline_iter)
 
+        v_form1.addRow(" ", None)
         self.qline_alpha = QLineEdit()
         self.qline_alpha.setText("0.03")
         size_pol = self.qline_alpha.sizePolicy()
         size_pol.setRetainSizeWhenHidden(True)
         self.qline_alpha.setSizePolicy(size_pol)
         self.qline_alpha.hide()
-        form.addRow("Alpha",self.qline_alpha)
+        v_form1.addRow("Alpha",self.qline_alpha)
 
         self.qline_alpha0 = QLineEdit()
-        self.qline_alpha0.setText("0.5")
+        self.qline_alpha0.setText("2")
         size_pol0 = self.qline_alpha0.sizePolicy()
         size_pol0.setRetainSizeWhenHidden(True)
         self.qline_alpha0.setSizePolicy(size_pol0)
         self.qline_alpha0.hide()
-        form.addRow("Alpha0",self.qline_alpha0)
+        v_form1.addRow("Alpha0",self.qline_alpha0)
 
         self.qline_alpha1 = QLineEdit()
-        self.qline_alpha1.setText("0.5")
+        self.qline_alpha1.setText("1")
         size_pol1 = self.qline_alpha1.sizePolicy()
         size_pol1.setRetainSizeWhenHidden(True)
         self.qline_alpha1.setSizePolicy(size_pol1)
         self.qline_alpha1.hide()
-        form.addRow("Alpha1",self.qline_alpha1)
+        v_form1.addRow("Alpha1",self.qline_alpha1)
         
         self.btn_tv_L1.clicked.connect(lambda: self.qline_alpha.hide())
         self.btn_tv_ROF.clicked.connect(lambda: self.qline_alpha.show())
@@ -114,19 +120,26 @@ class DenoiseDialog(QDialog):
    
 
         # organize items on GUI
-        vlayout.addWidget(self.lab_data_sel)
-        vlayout.addWidget(self.btn_curr_slice)
-        vlayout.addWidget(self.btn_all_slices_2D)
-        vlayout.addWidget(self.btn_all_slices_3D)
-        vlayout.addWidget(self.lab_denoise_type)
-        vlayout.addWidget(self.btn_tv_L1)
-        vlayout.addWidget(self.btn_tv_ROF)
-        vlayout.addWidget(self.btn_tv_L2)
-        vlayout.addWidget(self.btn_tgv2)
-        vlayout.addWidget(self.box_btns)
+        vlayout_sel.addWidget(self.btn_curr_slice)
+        vlayout_sel.addWidget(self.btn_all_slices_2D)
+        vlayout_sel.addWidget(self.btn_all_slices_3D)
+        grp_box_sel.setLayout(vlayout_sel)
 
-        hlayout.addLayout(vlayout)
-        hlayout.addLayout(form)
+        vlayout_type.addWidget(self.btn_tv_L1)
+        vlayout_type.addWidget(self.btn_tv_ROF)
+        vlayout_type.addWidget(self.btn_tv_L2)
+        vlayout_type.addWidget(self.btn_tgv2)
+        grp_box_type.setLayout(vlayout_type)
+
+        vlayout_sel_par.addWidget(grp_box_sel)
+        vlayout_sel_par.addWidget(grp_box_type)
+
+        vlayout_par.addLayout(v_form1)
+        vlayout_par.addWidget(self.box_btns)
+        grp_box_par.setLayout(vlayout_par)
+
+        hlayout.addLayout(vlayout_sel_par)
+        hlayout.addWidget(grp_box_par)
         
         self.setLayout(hlayout)
         #dialog.setStyleSheet('color: white')
@@ -141,6 +154,10 @@ class DenoiseDialog(QDialog):
                                 "QRadioButton"
                                     "{"
                                     "color: white;"
+                                    "}"
+                            "QGroupBox"
+                                    "{"
+                                    "color: white"
                                     "}"
                                 )
 
@@ -176,6 +193,9 @@ class DenoisedWindow(QDialog):
         self.array_shape = None
         self.slice_id_selected = None
         self.dataset_type = None
+
+        self.setWindowTitle("Denoised Data")
+
 
 
         self.view = DenoisedViewWidget(self.app, self)
@@ -243,7 +263,7 @@ class DenoisedWindow(QDialog):
             #tv_type_func not needed, just one possible case for tgv
             tv_class = TGV()
             tv_type_func = None
-            params = (alpha0, alpha1, iterations)
+            params = (lambd, alpha0, alpha1, iterations)
         
         # should be done with .start() method, not with run
         # otherwhise threading wont be activated

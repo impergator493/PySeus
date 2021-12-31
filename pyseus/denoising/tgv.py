@@ -135,7 +135,7 @@ class TGV():
 
 
 
-    def tgv2_denoising(self, img_noisy, alpha0, alpha1, iterations):
+    def tgv2_denoising(self, img_noisy, lambd, alpha0, alpha1, iterations):
         """
         @param f: the K observations of shape MxNxK
         @param alpha: tuple containing alpha1 and alpha2
@@ -191,8 +191,8 @@ class TGV():
             u_bar = 2*u_vec - u_vec_old
 
             p_temp = p_vec + sigma*k@(u_bar)
-            p = np.ravel(self.proj_ball(p_temp[0:3*L*M*N].reshape(3, L*M*N), alpha0))
-            q = np.ravel(self.proj_ball(p_temp[3*L*M*N:12*L*M*N].reshape(9, L*M*N), alpha1))
+            p = np.ravel(self.proj_ball(p_temp[0:3*L*M*N].reshape(3, L*M*N), alpha0*lambd))
+            q = np.ravel(self.proj_ball(p_temp[3*L*M*N:12*L*M*N].reshape(9, L*M*N), alpha1*lambd))
             p_vec = np.concatenate([p, q])
 
         u = u.reshape(L,M,N)

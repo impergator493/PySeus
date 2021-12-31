@@ -53,7 +53,7 @@ class PySeus():  # pylint: disable=R0902
         """The current dataset object.
         See `Formats <formats.html>`_."""
 
-        # M: @TODO object is not implemented like for dataset, HTML file is still missing
+        # M: @TODO object is not implemented like for dataset, Denoising HTML file is still missing
         # Is this variable neccessary?
         self.dataset_denoised = None
         """The temporary denoised dataset object.
