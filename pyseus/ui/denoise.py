@@ -178,7 +178,7 @@ class DenoiseDialog(QDialog):
 
         tv_type = self.grp_tv_type.checkedId()
 
-        self.window_denoised.open_window(alpha, alpha0, alpha1, lambd, iterations,dataset_type,tv_type)
+        self.window_denoised.start_calculation(alpha, alpha0, alpha1, lambd, iterations,dataset_type,tv_type)
 
 
 
@@ -212,9 +212,8 @@ class DenoisedWindow(QDialog):
 
         self.mode = Grayscale()
 
-    # the problem is, that here still the thread is a seprated one and therefor and information
-    # cannot be shown graphically (matplotlib doesnt work either)
-    def denoised_callback(self,data_obj):
+
+    def calculation_callback(self,data_obj):
         
         
         self.denoised = data_obj
@@ -231,7 +230,7 @@ class DenoisedWindow(QDialog):
        
     
 
-    def open_window(self,alpha, alpha0, alpha1, lambd,iterations,dataset_type, tv_type):
+    def start_calculation(self,alpha, alpha0, alpha1, lambd,iterations,dataset_type, tv_type):
 
          #print(self.grp_tv_type.checkedId())
 
@@ -269,7 +268,7 @@ class DenoisedWindow(QDialog):
         # otherwhise threading wont be activated
         
         thread_denoised = ThreadingDenoised(self, tv_class, tv_type_func, dataset_type, dataset_noisy, params)
-        thread_denoised.output.connect(self.denoised_callback)
+        thread_denoised.output.connect(self.calculation_callback)
         thread_denoised.start()
         
      

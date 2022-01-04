@@ -85,7 +85,7 @@ class TGV_Reco():
         return K
 
 
-    def proj_ball(self, Z, alpha):
+    def proj_ball(self, Z, alpha_lambda):
         """
         Projection to a ball as described in Equation (6)
         @param Y: either 2xMN or 4xMN
@@ -93,26 +93,26 @@ class TGV_Reco():
         @return: projection result either 2xMN or 4xMN
         """
         norm = np.linalg.norm(Z, axis=0)
-        projection = Z / np.maximum(1, 1/alpha * norm)
+        projection = Z / np.maximum(1, 1/alpha_lambda * norm)
     
         return projection
 
 
  
     #@TODO temporarily absolute value of coils sensitivities just for trying
-    def DA(self, u, sens_c):
+    def DA(self, u, sens_c, sparse_mask):
         """
         input parameter:
 
         u - current reconstructed sample in spatial domain, size (L,M,N)
         sens_c - coil sensitivities 
         """
-        return np.fft.fftn((sens_c * u), axes=(-3,-2,-1))
+        return sparse_mask * np.fft.fftn((sens_c * u), axes=(-3,-2,-1))
         
 
         
     #@TODO temporaril absolute value of coils sensitivities just for trying
-    def DAH(self, r, sens_c):
+    def DAH(self, r, sens_c, sparse_mask):
 
         """
         input parameter:
@@ -120,7 +120,7 @@ class TGV_Reco():
         R - dual variable of difference of current reconstructed sample u(n) in fourier domain and initial fourier data
         """
         
-        r_IFT = sens_c.conjugate() * np.fft.ifftn(r,axes=(-3,-2,-1))
+        r_IFT = sens_c.conjugate() * np.fft.ifftn(r*sparse_mask,axes=(-3,-2,-1))
 
         
         return np.sum( r_IFT, axis=0)
@@ -132,9 +132,9 @@ class TGV_Reco():
 
    # if its a big dataset, a lot of RAM is needed because all the raw data to process will be 
     # stored in the RAM
-    def tgv2_reconstruction_gen(self, dataset_type, data_raw, data_coils, lambd, alpha0, alpha1, iter):
+    def tgv2_reconstruction_gen(self, dataset_type, data_raw, data_coils, sparse_mask, lambd, alpha0, alpha1, iter):
 
-        params = (lambd, alpha0,alpha1,iter)
+        params = (sparse_mask, lambd, alpha0,alpha1,iter)
 
         if dataset_type == 1:
             
@@ -175,13 +175,16 @@ class TGV_Reco():
             raise TypeError("Dataset must be either 2D or 3D and matching the correct dataset type")
         
 
-    def tgv2_reconstruction(self, img_kspace, sens_coils, lambd, alpha0, alpha1, iterations):
+    def tgv2_reconstruction(self, img_kspace, sens_coils, sparse_mask, lambd, alpha0, alpha1, iterations):
         """
         @param f: the K observations of shape MxNxK
         @param alpha: tuple containing alpha1 and alpha2
         @param maxit: maximum number of iterations
         @return: tuple of u with shape MxN and v with shape 2xMxN
         """
+
+        # if img_kspace.shape[-3:] != sparse_mask.shape:
+        #     raise TypeError("k-Space dimensions and sparse mask dimensions do not agree")
 
         # Parameters
         gamma = 10
@@ -202,7 +205,8 @@ class TGV_Reco():
 
         
         # Lipschitz constant of K
-        Lip = np.sqrt(12)
+        #Lip = np.sqrt(12)
+        Lip = 1000
 
         # initialize primal variables - numpy arrays shape (L*M*N, )
         u = np.zeros(L*M*N, dtype=complex)
@@ -231,16 +235,7 @@ class TGV_Reco():
 
         # original picture of sample reconstructed from initial mri sample data
         # fourier inverse, coil correction and sum (or sum of squares?) over all coil pictures
-        uk = np.ravel(self.DAH(d, sens_coils))
-
-        #@TODO das ist nur ein test, um zu sehen wie es grundsätzlich mit der ifft aussieht und uk (summenbild von d reco)
-        # plt.figure()
-        # plt.subplot(1,2,1)
-        # plt.imshow(abs(uk.reshape(M,N)), cmap='gray')
-        # plt.subplot(1,2,2)
-        # plt.imshow(abs(np.fft.ifft2(d[9,0,:,:])), cmap='gray')
-        # plt.show()
-
+        uk = np.ravel(self.DAH(d, sens_coils,sparse_mask))
 
         # temp vector for DAH*r 
         DAHr = np.zeros_like(u_vec, dtype=complex)
@@ -253,7 +248,7 @@ class TGV_Reco():
             # where x is the parameter of the projection function i.e. u^(n+(1/2))
             
             #add result of DAHr only to first L*M*N entries, because they belong to the u_vec , v_vec should not be influenced
-            DAHr[0:L*M*N] = np.ravel(self.DAH(r.reshape(C,L,M,N), sens_coils))
+            DAHr[0:L*M*N] = np.ravel(self.DAH(r.reshape(C,L,M,N), sens_coils, sparse_mask))
             
             x = u_vec - tau * (k.T @ p_vec + DAHr)
             u = self.prox_G(x[0:L*M*N], uk, tau, gamma)
@@ -274,7 +269,7 @@ class TGV_Reco():
             p_vec = np.concatenate([p, q])
             
 
-            r_temp = r + np.ravel(sigma*(self.DA(u_bar[0:L*M*N].reshape(L,M,N), sens_coils)-d))
+            r_temp = r + np.ravel(sigma*(self.DA(u_bar[0:L*M*N].reshape(L,M,N), sens_coils, sparse_mask)-d))
             r = np.ravel(self.proj_L2(r_temp, sigma, np.ravel(d)))
 
             #tau_n = tau_n * mu

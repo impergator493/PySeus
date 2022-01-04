@@ -13,23 +13,56 @@ print("Attributes: ", dict(f1.attrs))
 # Inhalt der Attribute
 
 
-real_dat = f1['real_dat'][9,:,64:70,:,:]
-imag_dat = f1['imag_dat'][9,:,64:70,:,:]
+real_dat = f1['real_dat'][9,:,64:65,:,:]
+imag_dat = f1['imag_dat'][9,:,64:65,:,:]
+raw_data = real_dat + imag_dat*(1j)
+coils = f1['Coils'][:, 64:65,:,:]
 
-img = real_dat + imag_dat*(1j)
+data_size = raw_data.shape[-3:]
 
-print(img.shape, type(img[0,0]))
-
-coils = f1['Coils'][:, 64:70,:,:]
+img_sos_raw = np.fft.ifft2(raw_data)
+img_sos_raw = (np.sum(img_sos_raw, axis=0))**0.5
 
 # sparse matrix, for having a sparse k-space to demonstrate
-sp_mat = np.random.choice([0,1], size=(224,224), p=[0.0, 1.0])
+sp_mat_un = np.random.choice([0,1], size=data_size, p=[0.5, 0.5])
+img_sp_un = np.fft.ifft2(raw_data*sp_mat_un)
+img_sp_sos = (np.sum(img_sp_un**2,axis=0))**0.5
 
-img_spat = np.fft.ifft2(img*sp_mat)
+mat = scipy.io.loadmat("..\\..\\03_Daten\\brain.mat")
+data_raw = mat['im']
+pdf_un = mat['pdf_unif']
+pdf_var = mat['pdf_vardens']
+mask_un = mat['mask_unif']
+mask_var = mat['mask_vardens']
 
+y1 = mask_var.shape[0]//2-data_size[-2]//2
+y2 = mask_var.shape[0]//2+data_size[-2]//2
+x1 = mask_var.shape[1]//2-data_size[-1]//2
+x2 = mask_var.shape[1]//2+data_size[-1]//2
 
-print("Max and Min Value k-space: ", abs(img).min(), abs(img).max())
-print("Max and Min Value Spatial domain: ", abs(img_spat).min(), abs(img_spat).max())
+sp_mask_bin2 = mask_var[y1:y2,x1:x2]
+
+# Generate mask with variable density with gaussian distribution
+
+std = 0.4
+
+sp_un = np.random.uniform(low=0.0, high=1, size=data_size)
+x = np.linspace(-1, 1, data_size[-1])
+y = np.linspace(-1, 1, data_size[-2])
+if data_size[-3] == 1:
+    z = 0
+elif data_size[-3] == 2:
+    z = [0,0]
+else: z = np.linspace(-1, 1, data_size[-3])
+zv, yv, xv = np.meshgrid(z, y, x, indexing='ij')
+
+R = (xv**2 + yv**2 + zv**2)**0.5
+Z = (1. / (std * np.sqrt(2 * np.pi))) * np.exp(-.5*(R**2 / std))
+sp_mask = sp_un * Z
+
+sp_mask_bin = sp_mask > 0.2
+sp_mask_bin[R<0.15] = 1
+
 
 # plt.figure()
 # plt.subplot(1,3,1)
@@ -57,14 +90,25 @@ print("Max and Min Value Spatial domain: ", abs(img_spat).min(), abs(img_spat).m
 
 obj = TGV_Reco()
 
-denoised_reco = obj.tgv2_reconstruction_gen(2,img, coils, 0.005, 2, 1,10)
+denoised_reco = obj.tgv2_reconstruction_gen(1,raw_data, coils, sp_mask_bin2, 0.0001, 2, 1,10)
 
-np.save('denoise_u_veclist', denoised_reco)
+#np.save('denoise_u_veclist', denoised_reco)
+
+plt.figure()
+plt.subplot(1,3,1)
+plt.imshow(abs(img_sos_raw[0]), cmap='gray')
+plt.subplot(1,3,2)
+plt.imshow(abs(denoised_reco), cmap='gray')
+plt.subplot(1,3,3)
+plt.imshow(abs(img_sp_sos[0]), cmap='gray')
+plt.show()
+
+
 
 # plt für 2D several slices
-plt.figure()
-for i in range(1,7):
-    plt.subplot(1,6,i)
-    plt.imshow(abs(denoised_reco[i-1,:,:]), cmap='gray')
-plt.show()
+# plt.figure()
+# for i in range(1,7):
+#     plt.subplot(1,6,i)
+#     plt.imshow(abs(denoised_reco[i-1,:,:]), cmap='gray')
+# plt.show()
 
