@@ -85,7 +85,7 @@ class H5(BaseFormat):
                 self.scans = [0]
 
             elif self.dims == 4:  # multiple scans
-                self.scans = list(range(0, len(file_[self.subpath])-1))
+                self.scans = list(range(0, len(file_[self.subpath])))
 
             elif self.dims == 5:
                 message = ("The selected dataset is 5-dimensional."
@@ -93,7 +93,7 @@ class H5(BaseFormat):
                 QMessageBox.warning(None, "Pyseus", message)
                 scan_count = (file_[self.subpath].shape[0]
                               * file_[self.subpath].shape[1])
-                self.scans = list(range(0, scan_count-1))
+                self.scans = list(range(0, scan_count))
 
             else:
                 message = "Invalid dataset '{}' in '{}': Wrong dimensions." \
@@ -117,6 +117,7 @@ class H5(BaseFormat):
             if self.dims == 5:
                 dim_4, dim_5 = divmod(scan, file_[self.subpath].shape[1])
                 return numpy.asarray(file_[self.subpath][dim_4][dim_5])
+                
 
             return []  # can´t interpret data with dimensions <= 1 or > 5
 

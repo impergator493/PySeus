@@ -19,3 +19,4 @@ from .view import ViewWidget
 from .sidebar import InfoWidget, ConsoleWidget, MetaWidget
 from .thumbs import ThumbsWidget
 from .meta import MetaWindow
+from .denoise import DenoiseDialog, DenoisedViewWidget, DenoisedWindow

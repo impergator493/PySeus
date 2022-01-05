@@ -75,7 +75,7 @@ class PySeus():  # pylint: disable=R0902
         """Holds the meta window object."""
 
         self.denoise_window = None
-        """Hold the denoised diaglog object."""
+        """Holds the denoised diaglog object."""
 
         self.slice = -1
         """Index of the current slice."""
@@ -266,7 +266,6 @@ class PySeus():  # pylint: disable=R0902
         self.denoise_window = DenoiseDialog(self)
         self.denoise_window.show()
 
-    # @TODO Move to dataset(formats) class to remove numpy from core class 
     def set_denoised_dataset(self,dataset):
         """Save denoised data in Dataset after confirmation in Denoising Dialog."""
         if dataset.ndim == 2:
