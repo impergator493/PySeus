@@ -56,7 +56,7 @@ class PySeus():  # pylint: disable=R0902
         # M: @TODO object is not implemented like for dataset, Denoising HTML file is still missing
         # Is this variable neccessary?
         self.dataset_denoised = None
-        """The temporary denoised dataset object.
+        """The temporary denoised dataset.
         """
 
         self.mode = Grayscale()
@@ -76,6 +76,11 @@ class PySeus():  # pylint: disable=R0902
 
         self.denoise_window = None
         """Holds the denoised diaglog object."""
+
+        self.data_type = "image"
+        """"image" or "kspace" Type of data which is loaded from the file,
+        influences GUI representation of data and file load
+        dialogues"""
 
         self.slice = -1
         """Index of the current slice."""
@@ -105,8 +110,12 @@ class PySeus():  # pylint: disable=R0902
 
         self.qt_app.exec_()
 
-    def load_file(self, path):
+    def load_file(self, path, data_type="image"):
         """Try to load the file at *path*. See also *setup_dataset*."""
+        # data_type is either "image" or "kspace"
+        self.data_type = data_type
+        self.mode.set_source(self.data_type)
+        
         new_dataset = None
         for format_ in self.formats:
             if format_.can_handle(path):
@@ -131,7 +140,7 @@ class PySeus():  # pylint: disable=R0902
             dataset = self.dataset
 
         try:
-            if not dataset.load(arg):  # canceled by user
+            if not dataset.load(arg,self.data_type):  # canceled by user
                 return
 
             self.clear()

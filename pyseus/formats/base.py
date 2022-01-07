@@ -35,6 +35,9 @@ class BaseFormat():
         self.pixel_spacing = []
         """The pixel spacing metadata adjusted for rotation."""
 
+        self.data_type = "image"
+        """Choose between "image" and "ksapce" data type"""
+
     @classmethod
     def can_handle(cls, path):
         """Return True if the format class can handle the file at *path*,
@@ -42,7 +45,7 @@ class BaseFormat():
 
         Custom formats have to override this function."""
 
-    def load(self, path):
+    def load(self, path, data_type):
         """Attempt to load the file at *path*. Return True on success or
         throw an exception."""
 
@@ -221,6 +224,9 @@ class BaseFormat():
     def slice_count(self):
         """Return the number of slices in the current scan."""
         return len(self.pixeldata)
+
+    def get_data_type(self):
+        return self.data_type
 
 
 class LoadError(Exception):

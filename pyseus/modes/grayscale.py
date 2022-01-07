@@ -19,8 +19,9 @@ class Grayscale(BaseMode):
 
     @classmethod
     def setup_menu(cls, app, menu, ami):
-        ami(menu, "&Gray - Amplitude", partial(cls.start, app, 0))
-        ami(menu, "&Gray - Phase", partial(cls.start, app, 1))
+        ami(menu, "&Gray - Amplitude - Image", partial(cls.start, app, "image"))
+        ami(menu, "&Gray - Phase", partial(cls.start, app, "phase"))
+        ami(menu, "&Gray - Amplitude - Log(k-space)", partial(cls.start, app, "kspace"))
 
     @classmethod
     def start(cls, app, src):  # pylint: disable=W0221
@@ -32,9 +33,12 @@ class Grayscale(BaseMode):
     def __init__(self):
         BaseMode.__init__(self)
 
-        self.source = 0
-        """Determines wheter amplitude (0) or phase (1) information from the
-        data is used. Default ist amplitude (0)."""
+        self.source = "image"
+        """Determines wheter ("image") amplitude or "phase" information from the
+        data is us or the "kspace" FFT representation. Default is "image" amplitude."""
+
+        # factor for amplitude representation of k-space
+        self.exp_fft = 0.3
 
     def prepare(self, data):
         data = self.prepare_raw(data)
@@ -42,19 +46,21 @@ class Grayscale(BaseMode):
         return data
 
     def prepare_raw(self, data):
-        if self.source == 1:
+        if self.source == "phase":
             data = numpy.angle(data).astype(float)
-        elif self.source == 0:
+        elif self.source == "image":
             data = numpy.absolute(data).astype(float)
-
+        elif self.source == "kspace":
+            data = ((numpy.absolute(numpy.fft.fftshift(data)))**self.exp_fft).astype(float)
+        
         return data
 
     def apply_window(self, data):
-        if self.source == 1:
+        if self.source == "phase":
             data += numpy.pi  # align -pi to 0
             data *= 255 / (2*numpy.pi)  # scale pi to 255
 
-        elif self.source == 0:
+        elif self.source == "image" or self.source == "kspace":
             data -= self.black  # align black to 0
             data *= 255 / (self.white - self.black)  # scale white to 255
 
@@ -62,16 +68,27 @@ class Grayscale(BaseMode):
         return data.astype(numpy.uint8).copy()
 
     def setup_window(self, data):
-        data = numpy.absolute(data)
-        self.data_min = numpy.amin(data)
-        self.data_max = numpy.amax(data)
+        if self.source == "image" or self.source == "phase":
+            data = numpy.absolute(data)
+            self.data_min = numpy.amin(data)
+            self.data_max = numpy.amax(data)
+        elif self.source == "kspace":
+            data = (numpy.absolute(data))**self.exp_fft
+            self.data_min = numpy.amin(data)
+            self.data_max = numpy.amax(data)
         self.reset_window()
 
     def temporary_window(self, data):
-        data = numpy.absolute(data)
-        self.black = numpy.amin(data)
-        self.white = numpy.amax(data)
+        if self.source == "image" or self.source == "phase":
+            data = numpy.absolute(data)
+            self.black = numpy.amin(data)
+            self.white = numpy.amax(data)
+        elif self.source == "kspace":
+            data = (numpy.absolute(data))**self.exp_fft
+            self.black = numpy.amin(data)
+            self.white = numpy.amax(data)
 
+    # reset Window just for current scan (3D) to original value
     def reset_window(self):
         self.black = self.data_min
         self.white = self.data_max
@@ -96,7 +113,7 @@ class Grayscale(BaseMode):
         self.scale_window(scale_steps)
 
     def set_source(self, src):
-        """Use amplitude (1) or phase (0) infromation in data."""
+        """Represent amplitude (1) or phase (0) or FFT (2) (Log10 and FFTShift) information in data."""
 
         self.source = src
         self.reset_window()

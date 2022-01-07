@@ -108,8 +108,11 @@ class MainWindow(QMainWindow):  # pylint: disable=R0902
         ami = self.add_menu_item
         menu_bar = self.menuBar()
 
+        # partial fixes a given number of arguments to a function and generates a new function without 
+        # calling it
         self.file_menu = menu_bar.addMenu("&File")
-        ami(self.file_menu, "&Load", self._action_open, "Ctrl+O")
+        ami(self.file_menu, "&Load image", partial(self._action_open, "image"), "Ctrl+O")
+        ami(self.file_menu, "&Load k-space", partial(self._action_open, "kspace"), "Ctrl+K")
         ami(self.file_menu, "&Reload", self._action_reload, "Ctrl+L")
         self.file_menu.addSeparator()
         ami(self.file_menu, "&Quit", self._action_quit, "Ctrl+Q")
@@ -169,18 +172,13 @@ class MainWindow(QMainWindow):  # pylint: disable=R0902
         self.tools_menu.addSeparator()
         ami(self.tools_menu, "&Clear RoI", self._action_tool_clear, "Esc")
 
-        # @TODO generate menu entries the same way as tool menu
         self.denoise_menu = menu_bar.addMenu("&Denoise")
         ami(self.denoise_menu, "Denoising",
             self._open_dialog_tv, "---")
 
-
         self.denoise_menu = menu_bar.addMenu("&Reconstruct")
         ami(self.denoise_menu, "Reconstruction",
             lambda: None , "---")
-
-
-
 
         # About action is its own top level menu
         ami(menu_bar, "&About", self._action_about)
@@ -204,17 +202,20 @@ class MainWindow(QMainWindow):  # pylint: disable=R0902
     def closeEvent(self,event):
         self._action_quit()
 
-    def _action_open(self):
+    def _action_open(self, data_type="image"):
+        # type 1= image, type 2 = kspace
         path, _ = QFileDialog.getOpenFileName(None, "Open file",
                                               self._open_path, "*.*")
 
         if not path == "":
             self._open_path = os.path.dirname(path)
-            self.app.load_file(path)
+            self.app.load_file(path, data_type)
+
 
     def _action_reload(self):
         if self.app.dataset is not None:
-            self.app.load_file(self.app.dataset.path)
+            data_type = self.app.dataset.get_data_type()
+            self.app.load_file(self.app.dataset.path, data_type)
 
     def _action_zoom_in(self):
         self.view.zoom(1.25)

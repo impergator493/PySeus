@@ -8,6 +8,7 @@ Classes
 """
 
 import os
+from typing import Type
 import numpy
 
 import h5py
@@ -48,14 +49,24 @@ class H5(BaseFormat):
         }
 
         self.subpath = ""
-        """Internal path to the current dataset in the H5 file."""
+        """Internal path to the current image dataset in the H5 file."""
+
+        self.subpath_real = ""
+        """Internal path to the current real part of k-space of the dataset in the H5 file."""
+
+        self.subpath_imag = ""
+        """Internal path to the current imaginary part of k-space of the dataset in the H5 file."""
 
         self.dims = 0
         """Number of dimensions of the current dataset in the H5 file."""
 
-    def load(self, path):
+        
+
+    def load(self, path, data_type):
         if not os.path.isfile(path):
             raise LoadError("File not found.")
+
+        self.data_type = data_type
 
         with h5py.File(path, "r") as file_:
 
@@ -67,16 +78,36 @@ class H5(BaseFormat):
 
             file_.visititems(_walk)
 
-            if len(nodes) == 1:
-                self.subpath = nodes[0]
-
-            else:
-                dialog = H5Explorer(nodes)
+            def _openH5Explorer(title):
+                dialog = H5Explorer(nodes,title)
                 choice = dialog.exec()
                 if choice == QDialog.Accepted:
-                    self.subpath = dialog.result()
+                    subpath = dialog.result()
+                    return subpath
                 else:
                     return False
+
+            if len(nodes) == 1 and (self.data_type == "image" or self.data_type == "kspace"):
+                self.subpath = nodes[0]
+            elif self.data_type == "kspace":
+                self.subpath_real = _openH5Explorer("Select Real Dataset")
+                self.subpath_imag = _openH5Explorer("Select Imag Dataset")
+                len_re = len(file_[self.subpath_real].dims)
+                len_im = len(file_[self.subpath_imag].dims)
+                
+                if len_re == len_im:
+                    # to be consistent with dimension check of the 
+                    # scans below subpath variable of image data is used
+                    self.subpath = self.subpath_real
+                else:
+                    raise TypeError("Real and imag part of k-space data \
+                                    do not agree in dimensions")
+
+            elif self.data_type == "image":
+                self.subpath = _openH5Explorer("Select Dataset")
+
+            else:
+                raise TypeError("Unknown chosen datatype")
 
             self.path = path
             self.dims = len(file_[self.subpath].dims)
@@ -105,18 +136,36 @@ class H5(BaseFormat):
 
     def get_scan_pixeldata(self, scan):
         with h5py.File(self.path, "r") as file_:
-            if self.dims == 2:  # single slice
-                return numpy.asarray([file_[self.subpath]])
+            
+            if self.data_type == "image":
+            
+                if self.dims == 2:  # single slice
+                    return numpy.asarray([file_[self.subpath]])
 
-            if self.dims == 3:  # multiple slices
-                return numpy.asarray(file_[self.subpath])
+                if self.dims == 3:  # multiple slices
+                    return numpy.asarray(file_[self.subpath])
 
-            if self.dims == 4:  # multiple scans
-                return numpy.asarray(file_[self.subpath][scan])
+                if self.dims == 4:  # multiple scans
+                    return numpy.asarray(file_[self.subpath][scan])
 
-            if self.dims == 5:
-                dim_4, dim_5 = divmod(scan, file_[self.subpath].shape[1])
-                return numpy.asarray(file_[self.subpath][dim_4][dim_5])
+                if self.dims == 5:
+                    dim_4, dim_5 = divmod(scan, file_[self.subpath].shape[1])
+                    return numpy.asarray(file_[self.subpath][dim_4][dim_5])
+
+            elif self.data_type == "kspace":
+                if self.dims == 2:  # single slice
+                    return (numpy.asarray([file_[self.subpath_real]]) + 1j*numpy.asarray([file_[self.subpath_imag]]))
+
+                if self.dims == 3:  # multiple slices
+                    return (numpy.asarray(file_[self.subpath]) + 1j*numpy.asarray(file_[self.subpath_imag]))
+
+                if self.dims == 4:  # multiple scans
+                    return (numpy.asarray(file_[self.subpath_real][scan]) + 1j*numpy.asarray(file_[self.subpath_imag][scan]))
+
+                if self.dims == 5:
+                    dim_4, dim_5 = divmod(scan, file_[self.subpath_real].shape[1])
+                    return (numpy.asarray(file_[self.subpath][dim_4][dim_5]) + 1j*numpy.asarray(file_[self.subpath][dim_4][dim_5]))
+
                 
 
             return []  # can´t interpret data with dimensions <= 1 or > 5
@@ -173,9 +222,9 @@ class H5(BaseFormat):
 class H5Explorer(QDialog):  # pylint: disable=R0903
     """Dialog for selecting a dataset in an H5 file."""
 
-    def __init__(self, items):
+    def __init__(self, items, title):
         QDialog.__init__(self)
-        self.setWindowTitle("Select Dataset")
+        self.setWindowTitle(title)
         self.setWindowFlags(self.windowFlags()
                             & ~Qt.WindowContextHelpButtonHint)
         self.setWindowModality(Qt.ApplicationModal)
