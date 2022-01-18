@@ -5,6 +5,8 @@ import numpy as np
 import scipy
 import scipy.sparse as sp
 
+from ..settings import ProcessSelDataType
+
 # @TODO: womöglich als methode in TV klasse inkludieren?
 class TGV(): 
 
@@ -44,7 +46,7 @@ class TGV():
         return nabla, nabla_x, nabla_y, nabla_z
 
 
-    def prox_sum_l1(self, u, f, tau):
+    def prox_G(self, u, f, tau, lambd):
         """
         Used for calculation of the dataterm projection
 
@@ -55,13 +57,18 @@ class TGV():
         @param f: MN x K
         """
       
-        pis = u[...] + tau
+        # Das ist prox operator für L1 norm von datenterm, nicht für L2, deswegen haben wir
+        # sonst immer andere Formel gehabt die weiter unten steht.
+        #pis = u[...] + tau
 
         # bei nur 2 einträgen (f, pis) macht median dasselbe wie mean und nimmt den mittelwert
         # egal wieviele einträge, über eine achse nimmt er nur den median und diese
         # dimension verschwindet dann sogar, d.h. aus shape (M*N,2) wird dann (M*N,)
         # Rückgabe hat also K dimension wieder weniger
-        prox = np.median((f,pis), axis=0)
+        #prox = np.median((f,pis), axis=0)
+
+        # Derweil auf das umgestellt, weils laut Papers so richtig ist.
+        prox = (f*tau*lambd + u)/(1 + tau*lambd)
 
         return prox
 
@@ -100,7 +107,7 @@ class TGV():
 
         # prepare artifical 3D dataset(1,M,N) for 2D image (M,N), because at least one entry
         # in 3rd dimension is expected to be universal applicable 
-        if dataset_type == 1:
+        if dataset_type == ProcessSelDataType.SLICE_2D:
             temp = np.zeros((1,*dataset_noisy.shape))
             temp[0,:,:] = dataset_noisy
             dataset_noisy = temp
@@ -110,7 +117,7 @@ class TGV():
 
             return dataset_denoised
 
-        elif dataset_type == 2:
+        elif dataset_type == ProcessSelDataType.WHOLE_SCAN_2D:
             
             dataset_denoised = np.zeros(dataset_noisy.shape)
             slices = dataset_noisy.shape[0]
@@ -123,7 +130,7 @@ class TGV():
             return dataset_denoised
 
 
-        elif dataset_type == 3:
+        elif dataset_type == ProcessSelDataType.WHOLE_SCAN_3D:
             # keep dataset just as it is, if its allready 3D -> dataset_noisy = dataset_noisy
 
             dataset_denoised = self.tgv2_denoising(dataset_noisy, *params)
@@ -182,17 +189,17 @@ class TGV():
             # To calculate the data term projection you can use:
             # prox_sum_l1(x, f, tau, Wis)
             # where x is the parameter of the projection function i.e. u^(n+(1/2))
-            x = u_vec - tau * k.T @ p_vec
-            u = self.prox_sum_l1(x[0:L*M*N], img, tau)
-            v = x[L*M*N:12*L*M*N]
             u_vec_old = u_vec
+            x = u_vec - tau * k.T @ p_vec
+            u = self.prox_G(x[0:L*M*N], img, tau, lambd)
+            v = x[L*M*N:12*L*M*N]
             u_vec = np.concatenate([u, v])
 
             u_bar = 2*u_vec - u_vec_old
 
             p_temp = p_vec + sigma*k@(u_bar)
-            p = np.ravel(self.proj_ball(p_temp[0:3*L*M*N].reshape(3, L*M*N), alpha0*lambd))
-            q = np.ravel(self.proj_ball(p_temp[3*L*M*N:12*L*M*N].reshape(9, L*M*N), alpha1*lambd))
+            p = np.ravel(self.proj_ball(p_temp[0:3*L*M*N].reshape(3, L*M*N), alpha1))
+            q = np.ravel(self.proj_ball(p_temp[3*L*M*N:12*L*M*N].reshape(9, L*M*N), alpha0))
             p_vec = np.concatenate([p, q])
 
         u = u.reshape(L,M,N)

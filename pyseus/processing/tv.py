@@ -1,9 +1,12 @@
 # TV-L1 implementation based on Matlab User method
+# from Convex optimization PD Chambolle Pock Paper
 
 # define as class methods, then there is no need for initializing
 # but predefined values must be defined in another way then
 
 import numpy as np
+
+from ..settings import ProcessSelDataType
 
 
 
@@ -31,7 +34,7 @@ class TV():
 
 
         # if 2D per slice is done, for-loop is needed, for repeating 2D calculation of 3D dataset
-        if dataset_type == 2:
+        if dataset_type == ProcessSelDataType.WHOLE_SCAN_2D:
            
             dataset_denoised = np.zeros(dataset_noisy.shape)
             slices = dataset_noisy.shape[0]
@@ -43,7 +46,7 @@ class TV():
             return dataset_denoised
 
         #  2D and 3D dataset is automatically correctly handled by methods according to dataset dimensions 
-        elif dataset_type == 1 or dataset_type == 3:
+        elif dataset_type == ProcessSelDataType.WHOLE_SCAN_3D or dataset_type == ProcessSelDataType.SLICE_2D:
             
             args = (dataset_noisy, *params)
             dataset_denoised = func_denoise(*args)
@@ -111,14 +114,14 @@ class TV():
 
 
     def tv_denoising_L1(self,img, lambda_rat, iterations):
+        """ Denoising with TVfor regularization term and L1 on data term"""
         # check dimensions, so that just 2D image is processed at once
         # loop for multiple slices
         # maybe for first try hand over 3D image but just select 2D slice?
 
         #p_n+1
         #u_n+1 = model_L2 e.g.
-        
-        
+
         # automatic selection of correct gradient and divergence function
         grad_func = None
         div_func = None
@@ -147,7 +150,6 @@ class TV():
 
         for i in range(iterations):
 
-
             y_n_half = y_n + self.sigma*grad_func(x_bar_n)
             y_n_half_norm = (y_n_half[0]**2 + y_n_half[1]**2)**0.5
             y_n_half_norm[y_n_half_norm<1] = 1
@@ -172,7 +174,7 @@ class TV():
     # Algorithm 3: according to the paper this should work with ALG3.
     # Alg1, Alg2 not possible like with L1, L2?
     def tv_denoising_huberROF(self,img, lambda_rat, iterations, alpha):
-
+        """ Denoising with Huber regularization and L2 on data term"""
 
         # alpha = 0.05
 
@@ -221,10 +223,11 @@ class TV():
         return img_denoised
 
 
-
 # H1 = L2 denoising
 # M: @TODO define as class method?
     def tv_denoising_L2(self,img, lambda_rat, iterations):
+        """ Denoising with TV for regularization term and L2 on data term"""
+
 
         # check dimensions, so that just 2D image is processed at once
         # loop for multiple slices

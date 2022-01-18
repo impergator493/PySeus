@@ -1,5 +1,5 @@
 import numpy as np
-from pyseus.denoising.tgv import TGV
+from pyseus.processing.tgv import TGV
 
 import scipy.io
 import matplotlib.pyplot as plt

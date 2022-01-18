@@ -10,8 +10,10 @@ from functools import partial
 
 import numpy
 
-from ..settings import settings
+from enum import IntEnum
+from ..settings import settings, DataType
 from .base import BaseMode
+
 
 # M: This class just adjusts the value border for graphical representation, no gui things themselves
 class Grayscale(BaseMode):
@@ -19,9 +21,9 @@ class Grayscale(BaseMode):
 
     @classmethod
     def setup_menu(cls, app, menu, ami):
-        ami(menu, "&Gray - Amplitude - Image", partial(cls.start, app, "image"))
-        ami(menu, "&Gray - Phase", partial(cls.start, app, "phase"))
-        ami(menu, "&Gray - Amplitude - Log(k-space)", partial(cls.start, app, "kspace"))
+        ami(menu, "&Gray - Amplitude - Image", partial(cls.start, app, DataType.IMAGE))
+        ami(menu, "&Gray - Phase", partial(cls.start, app, DataType.PHASE))
+        ami(menu, "&Gray - Amplitude - Log(k-space)", partial(cls.start, app, DataType.KSPACE))
 
     @classmethod
     def start(cls, app, src):  # pylint: disable=W0221
@@ -33,9 +35,9 @@ class Grayscale(BaseMode):
     def __init__(self):
         BaseMode.__init__(self)
 
-        self.source = "image"
-        """Determines wheter ("image") amplitude or "phase" information from the
-        data is us or the "kspace" FFT representation. Default is "image" amplitude."""
+        self.source = DataType.IMAGE
+        """Determines wheter (IMAGE) amplitude or PHASE information from the
+        data is us or the KSPACE FFT representation. Default is IMAGE amplitude."""
 
         # factor for amplitude representation of k-space
         self.exp_fft = 0.3
@@ -46,21 +48,21 @@ class Grayscale(BaseMode):
         return data
 
     def prepare_raw(self, data):
-        if self.source == "phase":
+        if self.source == DataType.PHASE:
             data = numpy.angle(data).astype(float)
-        elif self.source == "image":
+        elif self.source == DataType.IMAGE:
             data = numpy.absolute(data).astype(float)
-        elif self.source == "kspace":
+        elif self.source == DataType.KSPACE:
             data = ((numpy.absolute(numpy.fft.fftshift(data)))**self.exp_fft).astype(float)
         
         return data
 
     def apply_window(self, data):
-        if self.source == "phase":
+        if self.source == DataType.PHASE:
             data += numpy.pi  # align -pi to 0
             data *= 255 / (2*numpy.pi)  # scale pi to 255
 
-        elif self.source == "image" or self.source == "kspace":
+        elif self.source == DataType.IMAGE or self.source == DataType.KSPACE:
             data -= self.black  # align black to 0
             data *= 255 / (self.white - self.black)  # scale white to 255
 
@@ -68,22 +70,22 @@ class Grayscale(BaseMode):
         return data.astype(numpy.uint8).copy()
 
     def setup_window(self, data):
-        if self.source == "image" or self.source == "phase":
+        if self.source == DataType.IMAGE or self.source == DataType.PHASE:
             data = numpy.absolute(data)
             self.data_min = numpy.amin(data)
             self.data_max = numpy.amax(data)
-        elif self.source == "kspace":
+        elif self.source == DataType.KSPACE:
             data = (numpy.absolute(data))**self.exp_fft
             self.data_min = numpy.amin(data)
             self.data_max = numpy.amax(data)
         self.reset_window()
 
     def temporary_window(self, data):
-        if self.source == "image" or self.source == "phase":
+        if self.source == DataType.IMAGE or self.source == DataType.PHASE:
             data = numpy.absolute(data)
             self.black = numpy.amin(data)
             self.white = numpy.amax(data)
-        elif self.source == "kspace":
+        elif self.source == DataType.KSPACE:
             data = (numpy.absolute(data))**self.exp_fft
             self.black = numpy.amin(data)
             self.white = numpy.amax(data)

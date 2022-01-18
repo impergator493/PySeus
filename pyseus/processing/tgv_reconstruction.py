@@ -1,10 +1,15 @@
 # Assignment from Image Processing, taken from there
+# plus changes to TGV-L2 according Knoll stollberger paper
+# main algorithmen is from homework, not from knoll paper (problem with u = u -tau*(), in paper there is u + tau*())
 
 import matplotlib.pyplot as plt
 import numpy as np
 from numpy.lib.recfunctions import rec_append_fields
 import scipy
 import scipy.sparse as sp
+import scipy.sparse.linalg as la
+
+from ..settings import ProcessSelDataType
 
 # @TODO: womöglich als methode in TV klasse inkludieren?
 class TGV_Reco(): 
@@ -45,9 +50,11 @@ class TGV_Reco():
         return nabla, nabla_x, nabla_y, nabla_z
 
 
-    def prox_G(self, x, uk, tau, gamma):
+    def prox_U(self, x, uk, tau, gamma):
         """
         Used for calculation of the dataterm projection
+
+        @param uk: initial reconstructed image from raw data
 
         compute pi with pi = \bar x + tau * W_i
         @param u: MN
@@ -81,6 +88,7 @@ class TGV_Reco():
             [None, nabla_x, None, None], [None, nabla_y, None, None], [None, nabla_z, None, None], \
             [None, None, nabla_x, None], [None, None, nabla_y, None], [None, None, nabla_z, None],
             [None, None, None, nabla_x], [None, None, None, nabla_y], [None, None, None, nabla_z]])
+
 
         return K
 
@@ -126,30 +134,26 @@ class TGV_Reco():
         return np.sum( r_IFT, axis=0)
 
 
-    def proj_L2(self, R, sigma, d_init):
+    def prox_R(self, R, sigma, d_init, lambd):
         
-        return (R-sigma*d_init)/(1+ sigma)
+        #return (R-sigma*d_init)/(1+ sigma) # this is from TGV knoll thesis?
+        return (R*lambd)/(lambd+ sigma) # this is from knoll stollberger tgv paper, makes more sense
 
    # if its a big dataset, a lot of RAM is needed because all the raw data to process will be 
     # stored in the RAM
-    def tgv2_reconstruction_gen(self, dataset_type, data_raw, data_coils, sparse_mask, lambd, alpha0, alpha1, iter):
+    def tgv2_reconstruction_gen(self, dataset_type, data_raw, data_coils, sparse_mask, lambd, alpha0, alpha1, iterations):
 
-        params = (sparse_mask, lambd, alpha0,alpha1,iter)
+        params = (lambd, alpha0,alpha1,iterations)
 
-        if dataset_type == 1:
-            
-            # prepare artifical 3D dataset(1,M,N) for 2D image (M,N), because to be universal applicable 
-            # at least one entry in 3rd dimension is expected
+        if dataset_type == ProcessSelDataType.SLICE_2D:
             # Because of Coil data, correct slice has to be select with L=1 already when method is called
-
-
-            # dat_real, imag are of dimension (C*L*M*N), if 2D L is just length 1
+            # dat_real, imag are of dimension (C*L*M*N), if 2D with 3.Dim L is just length 1
             # make return value 2D array again
-            dataset_denoised = self.tgv2_reconstruction(data_raw, data_coils, *params)[0,:,:]
+            dataset_denoised = self.tgv2_reconstruction(data_raw, data_coils, sparse_mask, *params)[0,:,:]
 
             return dataset_denoised
 
-        elif dataset_type == 2:
+        elif dataset_type == ProcessSelDataType.WHOLE_SCAN_2D:
             
             dataset_denoised = np.zeros((data_raw.shape[-3:]), dtype=complex)
             slices = data_raw.shape[1]
@@ -158,18 +162,14 @@ class TGV_Reco():
             # for every slice a new 3D array is build with the 0 axis with a length of 1
             for index in range(0, slices):
                 
-                dataset_denoised[index,:,:] = self.tgv2_reconstruction(data_raw[:,index:index+1,:,:], data_coils[:,index:index+1,:,:], *params)[0,:,:]
+                dataset_denoised[index,:,:] = self.tgv2_reconstruction(data_raw[:,index:index+1,:,:], data_coils[:,index:index+1,:,:], sparse_mask[:,index:index+1,:,:], *params)[0,:,:]
 
             return dataset_denoised
 
-
-        elif dataset_type == 3:
-            # keep dataset just as it is, if its allready 3D -> dataset_noisy = dataset_noisy
-
-            dataset_denoised = self.tgv2_reconstruction(data_raw, data_coils, *params)
+        elif dataset_type == ProcessSelDataType.WHOLE_SCAN_3D:
+            dataset_denoised = self.tgv2_reconstruction(data_raw, data_coils, sparse_mask, *params)
 
             return dataset_denoised
-
 
         else:
             raise TypeError("Dataset must be either 2D or 3D and matching the correct dataset type")
@@ -183,9 +183,7 @@ class TGV_Reco():
         @return: tuple of u with shape MxN and v with shape 2xMxN
         """
 
-        # if img_kspace.shape[-3:] != sparse_mask.shape:
-        #     raise TypeError("k-Space dimensions and sparse mask dimensions do not agree")
-
+        
         # Parameters
         gamma = 10
         beta = 1
@@ -202,11 +200,10 @@ class TGV_Reco():
 
         # make operators
         k = self.make_K(L,M,N)
-
-        
-        # Lipschitz constant of K
+     
+        # Lipschitz constant of K, according to papers ok, aber beim probieren ist es eigentlich zu klein.
         #Lip = np.sqrt(12)
-        Lip = 1000
+        Lip = np.sqrt(64)
 
         # initialize primal variables - numpy arrays shape (L*M*N, )
         u = np.zeros(L*M*N, dtype=complex)
@@ -250,10 +247,11 @@ class TGV_Reco():
             #add result of DAHr only to first L*M*N entries, because they belong to the u_vec , v_vec should not be influenced
             DAHr[0:L*M*N] = np.ravel(self.DAH(r.reshape(C,L,M,N), sens_coils, sparse_mask))
             
-            x = u_vec - tau * (k.T @ p_vec + DAHr)
-            u = self.prox_G(x[0:L*M*N], uk, tau, gamma)
-            v = x[L*M*N:12*L*M*N]
             u_vec_old = u_vec
+            x = u_vec - tau * (k.T @ p_vec + DAHr)
+            #u = self.prox_U(x[0:L*M*N], uk, tau, gamma)
+            u = x[0:L*M*N]
+            v = x[L*M*N:12*L*M*N]
             u_vec = np.concatenate([u, v])
 
             #tau_n = tau_n_old*(1+theta)**0.5
@@ -264,13 +262,13 @@ class TGV_Reco():
             u_bar = u_vec + theta * (u_vec - u_vec_old)
 
             p_temp = p_vec + sigma*k@(u_bar)
-            p = np.ravel(self.proj_ball(p_temp[0:3*L*M*N].reshape(3, L*M*N), alpha0*lambd))
-            q = np.ravel(self.proj_ball(p_temp[3*L*M*N:12*L*M*N].reshape(9, L*M*N), alpha1*lambd))
+            p = np.ravel(self.proj_ball(p_temp[0:3*L*M*N].reshape(3, L*M*N), alpha1*lambd))
+            q = np.ravel(self.proj_ball(p_temp[3*L*M*N:12*L*M*N].reshape(9, L*M*N), alpha0*lambd))
             p_vec = np.concatenate([p, q])
             
 
             r_temp = r + np.ravel(sigma*(self.DA(u_bar[0:L*M*N].reshape(L,M,N), sens_coils, sparse_mask)-d))
-            r = np.ravel(self.proj_L2(r_temp, sigma, np.ravel(d)))
+            r = np.ravel(self.prox_R(r_temp, sigma, np.ravel(d), lambd))
 
             #tau_n = tau_n * mu
 

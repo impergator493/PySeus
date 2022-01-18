@@ -8,6 +8,10 @@ Classes
 """
 
 import numpy
+from enum import IntEnum
+
+from ..settings import DataType
+
 
 
 class BaseFormat():
@@ -29,14 +33,17 @@ class BaseFormat():
         self.pixeldata = [[[]]]
         """3D array of the pixeldata of the current scan."""
 
+        self.coildata = [[[]]]
+        """4D array of the coil sensitivities data for the whole sample"""
+
         self.meta_keymap = {}
         """Maps common metadata keys to format specific keys."""
 
         self.pixel_spacing = []
         """The pixel spacing metadata adjusted for rotation."""
 
-        self.data_type = "image"
-        """Choose between "image" and "ksapce" data type"""
+        self.data_type = DataType.IMAGE
+        """Choose between "IMAGE" and "KSPACE" enum data type"""
 
     @classmethod
     def can_handle(cls, path):
@@ -76,6 +83,11 @@ class BaseFormat():
 
         return []
 
+    def get_reco_pixeldata(self, scan):
+        """Returns the 4D pixeldata from all coils (4.dim) of the current (in case there is a 5. dim) Scan  """
+        
+        return []
+
     def set_pixeldata(self, dataset, slice_id):
         """Sets pixeldata after denoising, if changes are confirmed."""
 
@@ -86,6 +98,10 @@ class BaseFormat():
             if dataset.ndim == 3 and slice_id == -1:  # multiple slices
                 self.pixeldata = dataset
 
+    def get_coil_data(self, slice_):
+        """Return the coil sensitivities data that was selected with the kspace data together"""
+        
+        return []
 
     def get_scan_metadata(self, scan):  # pylint: disable=R0201,W0613
         """Collect and return the metadata from the scan *scan*.

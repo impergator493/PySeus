@@ -10,9 +10,9 @@ import sys
 import webbrowser
 from functools import partial
 import os
+
 from PySide2 import QtWidgets
 from PySide2.QtCore import QLine
-
 from PySide2.QtWidgets import QButtonGroup, QDialog, QDialogButtonBox, QFormLayout, QLineEdit, QMainWindow, QAction, QLabel, QFileDialog, \
                               QFrame, QPushButton, QRadioButton, QVBoxLayout, QHBoxLayout, QWidget
 from PySide2.QtGui import QIcon
@@ -20,11 +20,10 @@ from PySide2.QtGui import QIcon
 from .view import ViewWidget
 from .sidebar import ConsoleWidget, InfoWidget, MetaWidget
 from .thumbs import ThumbsWidget
+from ..settings import DataType, ProcessType
 
 import scipy.io
 import matplotlib.pyplot as plt
-
-
 
 
 class MainWindow(QMainWindow):  # pylint: disable=R0902
@@ -111,8 +110,8 @@ class MainWindow(QMainWindow):  # pylint: disable=R0902
         # partial fixes a given number of arguments to a function and generates a new function without 
         # calling it
         self.file_menu = menu_bar.addMenu("&File")
-        ami(self.file_menu, "&Load image", partial(self._action_open, "image"), "Ctrl+O")
-        ami(self.file_menu, "&Load k-space", partial(self._action_open, "kspace"), "Ctrl+K")
+        ami(self.file_menu, "&Load image", partial(self._action_open, DataType.IMAGE), "Ctrl+O")
+        ami(self.file_menu, "&Load k-space", partial(self._action_open, DataType.KSPACE), "Ctrl+K")
         ami(self.file_menu, "&Reload", self._action_reload, "Ctrl+L")
         self.file_menu.addSeparator()
         ami(self.file_menu, "&Quit", self._action_quit, "Ctrl+Q")
@@ -172,13 +171,11 @@ class MainWindow(QMainWindow):  # pylint: disable=R0902
         self.tools_menu.addSeparator()
         ami(self.tools_menu, "&Clear RoI", self._action_tool_clear, "Esc")
 
-        self.denoise_menu = menu_bar.addMenu("&Denoise")
-        ami(self.denoise_menu, "Denoising",
-            self._open_dialog_tv, "---")
-
-        self.denoise_menu = menu_bar.addMenu("&Reconstruct")
-        ami(self.denoise_menu, "Reconstruction",
-            lambda: None , "---")
+        self.process_menu = menu_bar.addMenu("&Process")
+        ami(self.process_menu, "Denoising",
+            partial(self._open_process_dialog, ProcessType.DENOISING ), "---")
+        ami(self.process_menu, "Reconstruction",
+            partial(self._open_process_dialog, ProcessType.RECONSTRUCTION), "---")
 
         # About action is its own top level menu
         ami(menu_bar, "&About", self._action_about)
@@ -199,11 +196,11 @@ class MainWindow(QMainWindow):  # pylint: disable=R0902
         self.app.qt_app.quit()
         sys.exit(0)
 
+    # without event it would work that all windows close
     def closeEvent(self,event):
         self._action_quit()
 
-    def _action_open(self, data_type="image"):
-        # type 1= image, type 2 = kspace
+    def _action_open(self, data_type=DataType.IMAGE):
         path, _ = QFileDialog.getOpenFileName(None, "Open file",
                                               self._open_path, "*.*")
 
@@ -270,8 +267,8 @@ class MainWindow(QMainWindow):  # pylint: disable=R0902
     def _action_cine(self):
         self.app.toggle_cine()
 
-    def _open_dialog_tv(self):
-        self.app.show_denoise_window()
+    def _open_process_dialog(self, proc_type):
+        self.app.show_process_window(proc_type)
     
 
 

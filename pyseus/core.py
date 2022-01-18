@@ -9,6 +9,8 @@ Classes
 import os
 import cv2
 import numpy
+from enum import IntEnum
+
 
 from PySide2.QtCore import QTimer
 from PySide2.QtWidgets import QApplication, QMessageBox
@@ -19,15 +21,17 @@ from .settings import settings
 from .tools import AreaTool, LineTool
 from .ui import MainWindow
 from .ui.meta import MetaWindow
-from .ui.denoise import DenoiseDialog
-
+from .ui.process import ProcessDialog
+from .settings import DataType
 
 class PySeus():  # pylint: disable=R0902
+
     """The main application class acts as front controller."""
 
+    
     def __init__(self, gui=True):
         # set gui = false for testing
-
+        
         self.qt_app = None
         """The QApplication instance for interaction with the Qt framework."""
 
@@ -55,8 +59,8 @@ class PySeus():  # pylint: disable=R0902
 
         # M: @TODO object is not implemented like for dataset, Denoising HTML file is still missing
         # Is this variable neccessary?
-        self.dataset_denoised = None
-        """The temporary denoised dataset.
+        self.dataset_processed = None
+        """The temporary processed dataset.
         """
 
         self.mode = Grayscale()
@@ -74,11 +78,11 @@ class PySeus():  # pylint: disable=R0902
         self.meta_window = None
         """Holds the meta window object."""
 
-        self.denoise_window = None
-        """Holds the denoised diaglog object."""
+        self.process_window = None
+        """Holds the process diaglog object for denoising and reconstruction."""
 
-        self.data_type = "image"
-        """"image" or "kspace" Type of data which is loaded from the file,
+        self.data_type = DataType.IMAGE
+        """"IMAGE" or "KSPACE" Enum of data which is loaded from the file,
         influences GUI representation of data and file load
         dialogues"""
 
@@ -110,9 +114,8 @@ class PySeus():  # pylint: disable=R0902
 
         self.qt_app.exec_()
 
-    def load_file(self, path, data_type="image"):
+    def load_file(self, path, data_type=DataType.IMAGE):
         """Try to load the file at *path*. See also *setup_dataset*."""
-        # data_type is either "image" or "kspace"
         self.data_type = data_type
         self.mode.set_source(self.data_type)
         
@@ -132,13 +135,13 @@ class PySeus():  # pylint: disable=R0902
         """Try to load *data*. See also *setup_dataset*."""
         new_dataset = Raw()
         self.setup_dataset(data, new_dataset)
-
+    
     def setup_dataset(self, arg, dataset=None):
         """Setup a new dataset: Load scan list, generate thumbnails and load
         default scan."""
         if dataset is None:
             dataset = self.dataset
-
+        
         try:
             if not dataset.load(arg,self.data_type):  # canceled by user
                 return
@@ -270,13 +273,13 @@ class PySeus():  # pylint: disable=R0902
         self.meta_window = MetaWindow(self, self.dataset.get_metadata())
         self.meta_window.show()
 
-    def show_denoise_window(self):
-        """Show the denoise window."""
-        self.denoise_window = DenoiseDialog(self)
-        self.denoise_window.show()
+    def show_process_window(self, proc_type):
+        """Show the process window."""
+        self.process_window = ProcessDialog(self, proc_type)
+        self.process_window.show()
 
-    def set_denoised_dataset(self,dataset):
-        """Save denoised data in Dataset after confirmation in Denoising Dialog."""
+    def set_processed_dataset(self,dataset):
+        """Save processed data in Dataset after confirmation in ProcessDialog."""
         if dataset.ndim == 2:
             slice_id = self.slice
         elif dataset.ndim == 3:
@@ -337,3 +340,5 @@ class PySeus():  # pylint: disable=R0902
 
     def _cine_next(self):
         self.select_scan(1, True)
+
+

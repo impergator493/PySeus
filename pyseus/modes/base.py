@@ -8,6 +8,8 @@ Classes
 
 import cv2
 import numpy as np
+from enum import IntEnum
+from ..settings import DataType
 
 from PySide2.QtGui import QImage, QPixmap
 

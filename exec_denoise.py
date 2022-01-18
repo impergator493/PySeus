@@ -10,7 +10,7 @@ import scipy.io
 
 import numpy as np
 
-from pyseus.denoising.tv import TV
+from pyseus.processing.tv import TV
 
 
 # Full paths do not work some times, windows issue or something else?

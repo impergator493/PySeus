@@ -1,10 +1,9 @@
 import numpy as np
-from pyseus.denoising.tgv_reconstruction import TGV_Reco
+from pyseus.processing.tgv_reconstruction import TGV_Reco
 import h5py    
 import numpy as np  
 import matplotlib.pyplot as plt  
 import scipy.io
-
 
 f1 = h5py.File("..\\..\\03_Daten\\fourier_data_reconstruction\\prob01.h5")    
 print('\n')
@@ -13,20 +12,20 @@ print("Attributes: ", dict(f1.attrs))
 # Inhalt der Attribute
 
 
-real_dat = f1['real_dat'][9,:,64:65,:,:]
-imag_dat = f1['imag_dat'][9,:,64:65,:,:]
+real_dat = f1['real_dat'][9,:,69:70,:,:]
+imag_dat = f1['imag_dat'][9,:,69:70,:,:]
 raw_data = real_dat + imag_dat*(1j)
-coils = f1['Coils'][:, 64:65,:,:]
+coils = f1['Coils'][:,69:70,:,:]
 
 data_size = raw_data.shape[-3:]
 
-img_sos_raw = np.fft.ifft2(raw_data)
-img_sos_raw = (np.sum(img_sos_raw, axis=0))**0.5
+#img_sos_raw = np.fft.ifft2(raw_data)
+#img_sos_raw = (np.sum(img_sos_raw, axis=0))**0.5
 
 # sparse matrix, for having a sparse k-space to demonstrate
-sp_mat_un = np.random.choice([0,1], size=data_size, p=[0.5, 0.5])
-img_sp_un = np.fft.ifft2(raw_data*sp_mat_un)
-img_sp_sos = (np.sum(img_sp_un**2,axis=0))**0.5
+#sp_mat_un = np.random.choice([0,1], size=data_size, p=[0.5, 0.5])
+#img_sp_un = np.fft.ifft2(raw_data*sp_mat_un)
+#img_sp_sos = (np.sum(img_sp_un**2,axis=0))**0.5
 
 mat = scipy.io.loadmat("..\\..\\03_Daten\\brain.mat")
 data_raw = mat['im']
@@ -35,6 +34,7 @@ pdf_var = mat['pdf_vardens']
 mask_un = mat['mask_unif']
 mask_var = mat['mask_vardens']
 
+# take mask_var densitiy and fit it to current Raw data x and y size
 y1 = mask_var.shape[0]//2-data_size[-2]//2
 y2 = mask_var.shape[0]//2+data_size[-2]//2
 x1 = mask_var.shape[1]//2-data_size[-1]//2
@@ -90,17 +90,20 @@ sp_mask_bin[R<0.15] = 1
 
 obj = TGV_Reco()
 
-denoised_reco = obj.tgv2_reconstruction_gen(1,raw_data, coils, sp_mask_bin2, 0.0001, 2, 1,10)
+denoised_reco = obj.tgv2_reconstruction_gen(0,raw_data, coils, sp_mask_bin2, 10, 2, 1,1)
 
 #np.save('denoise_u_veclist', denoised_reco)
 
 plt.figure()
 plt.subplot(1,3,1)
-plt.imshow(abs(img_sos_raw[0]), cmap='gray')
+plt.title("SOS IFFT Full Raw data")
+#lt.imshow(abs(img_sos_raw[0]), cmap='gray')
 plt.subplot(1,3,2)
+plt.title("Denoised Reco")
 plt.imshow(abs(denoised_reco), cmap='gray')
 plt.subplot(1,3,3)
-plt.imshow(abs(img_sp_sos[0]), cmap='gray')
+plt.title("SOS IFFT Sparse mask Uniform")
+#plt.imshow(abs(img_sp_sos[0]), cmap='gray')
 plt.show()
 
 

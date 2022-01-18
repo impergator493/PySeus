@@ -1,63 +1,67 @@
-from PySide2.QtWidgets import QBoxLayout, QButtonGroup, QDesktopWidget, QDialog, QDialogButtonBox, QFormLayout, QGroupBox, QLayout, QLineEdit, QMainWindow, QAction, QLabel, QFileDialog, \
+from PySide2.QtWidgets import QBoxLayout, QButtonGroup, QCheckBox, QDesktopWidget, QDialog, QDialogButtonBox, QFormLayout, QGroupBox, QLayout, QLineEdit, QMainWindow, QAction, QLabel, QFileDialog, \
                               QFrame, QPushButton, QRadioButton, QScrollArea, QSizePolicy, QVBoxLayout, QHBoxLayout, QWidget
 
 
-from pyseus.denoising.threading_denoise import ThreadingDenoised
-from pyseus.denoising.tv import TV
-#from pyseus.denoising.tgv import TGV
-from pyseus.denoising.tgv import TGV
-#from pyseus.denoising.tgv_3D import TGV_3D
+from ..settings import ProcessType, ProcessSelDataType, ProcessRegType, DataType
+
+from pyseus.processing.threading_process import ProcessThread
+from pyseus.processing.tv import TV
+from pyseus.processing.tgv import TGV
+from pyseus.processing.tgv_reconstruction import TGV_Reco
 from pyseus.modes.grayscale import Grayscale
 from PySide2.QtCore import Qt
 import numpy
 import scipy
 
-import matplotlib.pyplot as plt
 
 
-class DenoiseDialog(QDialog):
+class ProcessDialog(QDialog):
+    """ Dialog for Image Processing with input parameters "denoising" or "reconstruction" as processing type"""
 
-    # parent Window has to be added?
-    def __init__(self,app):
+    def __init__(self,app, proc_type):
         super().__init__()
-    
+  
         self.app = app
-        self.window_denoised = DenoisedWindow(app)
-
+        self.proc_type = proc_type
+        self.window_processed = ProcessedWindow(app, self.proc_type)
+        
 
         vlayout_sel_par = QVBoxLayout()
         vlayout_sel = QVBoxLayout()
         vlayout_type = QVBoxLayout()
         grp_box_sel = QGroupBox("Data Selection")
-        grp_box_type = QGroupBox("Denoising Type")
+        grp_box_type = QGroupBox("Regularization Type")
 
         hlayout = QHBoxLayout()
-        self.setWindowTitle("Denoise")
+        # Take "Denoising" or "Reconstruction" as title straight from the ENUM
+        self.setWindowTitle(str.capitalize(self.proc_type.name))
         
         # subgroup of radio buttons for data selection
         self.grp_data_sel = QButtonGroup()
         self.btn_curr_slice = QRadioButton("Current Slice")
         self.btn_curr_slice.setChecked(True)
-        self.btn_all_slices_2D = QRadioButton("2D - Whole Dataset")
-        self.btn_all_slices_3D = QRadioButton("3D - Whole Dataset")
-        self.grp_data_sel.addButton(self.btn_curr_slice,1)
-        self.grp_data_sel.addButton(self.btn_all_slices_2D,2)
-        self.grp_data_sel.addButton(self.btn_all_slices_3D,3)
+        self.btn_all_slices_2D = QRadioButton("2D - Whole Scan")
+        self.btn_all_slices_3D = QRadioButton("3D - Whole Scan")
+        self.grp_data_sel.addButton(self.btn_curr_slice,ProcessSelDataType.SLICE_2D)
+        self.grp_data_sel.addButton(self.btn_all_slices_2D,ProcessSelDataType.WHOLE_SCAN_2D)
+        self.grp_data_sel.addButton(self.btn_all_slices_3D,ProcessSelDataType.WHOLE_SCAN_3D)
+        self.chbx_coil = QCheckBox("Use coil sensitivities")
+        self.chbx_spmask = QCheckBox("Use undersampling sparse mask")
 
         
         # subgroup of radio buttons to dataset selection
         self.grp_tv_type = QButtonGroup()
-        self.btn_tv_L1 = QRadioButton("L1")
+        self.btn_tv_L1 = QRadioButton("TV-L1")
         self.btn_tv_L1.setChecked(True)
         self.btn_tv_ROF = QRadioButton("HuberROF")
-        self.btn_tv_L2 = QRadioButton("L2")
+        self.btn_tv_L2 = QRadioButton("TV-L2")
         self.btn_tgv2 = QRadioButton("TGV2")
-        self.grp_tv_type.addButton(self.btn_tv_L1, 1)
-        self.grp_tv_type.addButton(self.btn_tv_ROF, 2)
-        self.grp_tv_type.addButton(self.btn_tv_L2, 3)
-        self.grp_tv_type.addButton(self.btn_tgv2, 4)
+        self.grp_tv_type.addButton(self.btn_tv_L1, int(ProcessRegType.TV_L1))
+        self.grp_tv_type.addButton(self.btn_tv_ROF, int(ProcessRegType.TV_ROF))
+        self.grp_tv_type.addButton(self.btn_tv_L2, int(ProcessRegType.TV_L2))
+        self.grp_tv_type.addButton(self.btn_tgv2, int(ProcessRegType.TGV2))
         
-        # form layout for parameter input for denoising algorithm
+        # form layout for parameter input for processing algorithm
         
         vlayout_par = QVBoxLayout()
         grp_box_par = QGroupBox("Parameters")
@@ -123,6 +127,9 @@ class DenoiseDialog(QDialog):
         vlayout_sel.addWidget(self.btn_curr_slice)
         vlayout_sel.addWidget(self.btn_all_slices_2D)
         vlayout_sel.addWidget(self.btn_all_slices_3D)
+        if self.proc_type == ProcessType.RECONSTRUCTION:
+            vlayout_sel.addWidget(self.chbx_coil)
+            vlayout_sel.addWidget(self.chbx_spmask)
         grp_box_sel.setLayout(vlayout_sel)
 
         vlayout_type.addWidget(self.btn_tv_L1)
@@ -159,6 +166,10 @@ class DenoiseDialog(QDialog):
                                     "{"
                                     "color: white"
                                     "}"
+                            "QCheckBox"
+                                    "{"
+                                    "color: white"
+                                    "}"
                                 )
 
 
@@ -169,37 +180,36 @@ class DenoiseDialog(QDialog):
         alpha0 = float(self.qline_alpha0.text())
         alpha1 = float(self.qline_alpha1.text())
         lambd = float(self.qline_lambd.text())
-        iterations = int(self.qline_iter.text())  
+        iterations = int(self.qline_iter.text())
 
-        btn_data_id = self.grp_data_sel.checkedId()
         
         #according to definition in init method, 1 = 2D, 2 = 2D - whole dataset, 3 = 3D - whole Dataset
-        dataset_type = btn_data_id
+        dataset_type = ProcessSelDataType(self.grp_data_sel.checkedId())
+        tv_type = ProcessRegType(self.grp_tv_type.checkedId())
 
-        tv_type = self.grp_tv_type.checkedId()
+        use_coilmap = self.chbx_coil.isChecked()
+        use_spmask = self.chbx_spmask.isChecked()
 
-        self.window_denoised.start_calculation(alpha, alpha0, alpha1, lambd, iterations,dataset_type,tv_type)
+        self.window_processed.start_calculation(alpha, alpha0, alpha1, lambd, iterations,dataset_type,tv_type, use_coilmap, use_spmask)
 
 
 
 
-class DenoisedWindow(QDialog):
+class ProcessedWindow(QDialog):
 
-    def __init__(self,app):
+    def __init__(self,app, proc_type):
         super().__init__()
 
         self.app = app
-        self.denoised = None
+        self.processed = None
         self.array_shape = None
         self.slice_id_selected = None
         self.dataset_type = None
+        self.proc_type = proc_type
 
-        self.setWindowTitle("Denoised Data")
+        self.setWindowTitle("Processed Data")
 
-
-
-        self.view = DenoisedViewWidget(self.app, self)
-        #self.view.widgetResizable()
+        self.view = ProcessedViewWidget(self.app, self)
         self.box_btns_ok = QDialogButtonBox()
         self.box_btns_ok.setStandardButtons(QDialogButtonBox.Cancel | QDialogButtonBox.Ok)
         self.box_btns_ok.accepted.connect(self.signal_ok)
@@ -216,60 +226,115 @@ class DenoisedWindow(QDialog):
     def calculation_callback(self,data_obj):
         
         
-        self.denoised = data_obj
+        self.processed = data_obj
 
-        
-        if self.dataset_type == 2 or self.dataset_type == 3:
-            self.slice_id_selected = (self.app.dataset.slice_count() // 2)
-            denoised_displayed = self.denoised[self.slice_id_selected,:,:]
-        elif self.dataset_type == 1:
-            denoised_displayed = self.denoised
+        #TODO Remove fixed slice id
+        if self.dataset_type == ProcessSelDataType.WHOLE_SCAN_2D or self.dataset_type == ProcessSelDataType.WHOLE_SCAN_3D :
+            #self.slice_id_selected = (self.app.dataset.slice_count() // 2)
+            self.slice_id_selected = 10
+            processed_displayed = self.processed[self.slice_id_selected,:,:]
+        elif self.dataset_type == ProcessSelDataType.SLICE_2D:
+            processed_displayed = self.processed
 
-        self.display_image(denoised_displayed)
+        self.display_image(processed_displayed)
 
        
     
 
-    def start_calculation(self,alpha, alpha0, alpha1, lambd,iterations,dataset_type, tv_type):
+    def start_calculation(self,alpha, alpha0, alpha1, lambd,iterations,dataset_type, tv_type, use_coilmap, use_spmask):
 
-         #print(self.grp_tv_type.checkedId())
-
-        
         self.dataset_type = dataset_type
 
-        #noisy = scipy.io.loadmat('./tests/cameraman_noise.mat')['im']
+        if self.proc_type == ProcessType.DENOISING:
+            
+            if self.dataset_type == ProcessSelDataType.WHOLE_SCAN_2D or self.dataset_type == ProcessSelDataType.WHOLE_SCAN_3D:
+                dataset_noisy = self.app.dataset.get_pixeldata(-1)
+            elif self.dataset_type == ProcessSelDataType.SLICE_2D:
+                dataset_noisy = self.app.dataset.get_pixeldata(self.app.get_slice_id())
 
-        if self.dataset_type == 2 or self.dataset_type == 3:
-            dataset_noisy = self.app.dataset.get_pixeldata(-1)
-        elif self.dataset_type == 1:
-            dataset_noisy = self.app.dataset.get_pixeldata(self.app.get_slice_id())
+            if tv_type == ProcessRegType.TV_L1:
+                tv_class = TV()
+                tv_type_func = tv_class.tv_denoising_L1
+                params = (lambd, iterations)
+            if tv_type == ProcessRegType.TV_ROF:
+                tv_class = TV()
+                tv_type_func = tv_class.tv_denoising_huberROF
+                params = (lambd, iterations, alpha)
+            if tv_type == ProcessRegType.TV_L2:
+                tv_class = TV()
+                tv_type_func = tv_class.tv_denoising_L2
+                params = (lambd, iterations)
+            if tv_type == ProcessRegType.TGV2:
+                #tv_type_func not needed, just one possible case for tgv
+                tv_class = TGV()
+                tv_type_func = None
+                params = (lambd, alpha0, alpha1, iterations)
 
-            #L1 needs a small lambda for denoising, better can be seen with saltn pepper noise of cameraman standard noised pic
+            thread_processed = ProcessThread(self, tv_class, tv_type_func, dataset_type, dataset_noisy, params)
+            thread_processed.output.connect(self.calculation_callback)
+            thread_processed.start()
         
-        if tv_type == 1:
-            tv_class = TV()
-            tv_type_func = tv_class.tv_denoising_L1
-            params = (lambd, iterations)
-        if tv_type == 2:
-            tv_class = TV()
-            tv_type_func = tv_class.tv_denoising_huberROF
-            params = (lambd, iterations, alpha)
-        if tv_type == 3:
-            tv_class = TV()
-            tv_type_func = tv_class.tv_denoising_L2
-            params = (lambd, iterations)
-        if tv_type == 4:
-            #tv_type_func not needed, just one possible case for tgv
-            tv_class = TGV()
-            tv_type_func = None
-            params = (lambd, alpha0, alpha1, iterations)
-        
+        elif self.proc_type == ProcessType.RECONSTRUCTION:
+            
+            if self.app.dataset.get_data_type() != DataType.KSPACE:
+                raise TypeError("Loaded dataset must be kspace data")
+
+            else:
+
+                scan_id = self.app.dataset.scan
+                slice_id = self.app.get_slice_id()
+                #@TODO: Remove selection for specific Slices again, just to see if it works in general
+                if self.dataset_type == ProcessSelDataType.WHOLE_SCAN_2D or self.dataset_type == ProcessSelDataType.WHOLE_SCAN_3D:
+                    dataset_kspace = self.app.dataset.get_reco_pixeldata(scan_id, -1)[:,40:70,:,:]#dataset_noisy = self.app.dataset.get_pixeldata(-1)
+                elif self.dataset_type == ProcessSelDataType.SLICE_2D:
+                    dataset_kspace = self.app.dataset.get_reco_pixeldata(scan_id, slice_id)#dataset_noisy = self.app.dataset.get_pixeldata(self.app.get_slice_id())
+
+                sparse_mask = numpy.ones_like(dataset_kspace)
+                data_coils = numpy.ones_like(dataset_kspace)
+
+                # if no sparse mask given, sample is fully sampled and the whole array is 1
+                if use_spmask:
+                    pass
+                    # add function to import sparse mask or to create one
+                # if no sensitivity map is given, the whole array contains 1
+                if use_coilmap:
+                    if self.dataset_type == ProcessSelDataType.WHOLE_SCAN_2D or self.dataset_type == ProcessSelDataType.WHOLE_SCAN_3D:
+                        #TODO Remove selection for specific slices later again
+                        data_coils = self.app.dataset.get_coil_data(-1)[:,40:70,:,:]
+                    elif self.dataset_type == ProcessSelDataType.SLICE_2D:
+                        data_coils = self.app.dataset.get_coil_data(slice_id)
+
+                #if tv_type == ProcessRegType.TV_L1:
+                    #tv_class = TV()
+                    #tv_type_func = tv_class.tv_denoising_L1
+                    #params = (lambd, iterations)
+                #if tv_type == ProcessRegType.TV_ROF:
+                    #tv_class = TV()
+                    #tv_type_func = tv_class.tv_denoising_huberROF
+                    #params = (lambd, iterations, alpha)
+                #if tv_type == ProcessRegType.TV_L2:
+                    #tv_class = TV()
+                    #tv_type_func = tv_class.tv_denoising_L2
+                    #params = (lambd, iterations)
+                if tv_type == ProcessRegType.TGV2:
+                    #tv_type_func not needed, just one possible case for tgv
+                    tv_class = TGV_Reco()
+                    tv_type_func = None
+                    params = (lambd, alpha0, alpha1, iterations)
+
+                    # zum probieren um debuggen zu können temporär:
+                    self.calculation_callback(tv_class.tgv2_reconstruction_gen(dataset_type, dataset_kspace, 
+                                                                                data_coils, sparse_mask, *params))
+
+                # thread_processed = ProcessThread(self, tv_class, tv_type_func, dataset_type, dataset_kspace, params, sparse_mask, data_coils)
+                # thread_processed.output.connect(self.calculation_callback)
+                # thread_processed.start()
+
+        # Threading
         # should be done with .start() method, not with run
         # otherwhise threading wont be activated
         
-        thread_denoised = ThreadingDenoised(self, tv_class, tv_type_func, dataset_type, dataset_noisy, params)
-        thread_denoised.output.connect(self.calculation_callback)
-        thread_denoised.start()
+        
         
      
 
@@ -292,10 +357,10 @@ class DenoisedWindow(QDialog):
      
     def refresh_slice(self, slice_inc):
         
-        if self.dataset_type == 2 or self.dataset_type == 3:
+        if self.dataset_type == ProcessSelDataType.WHOLE_SCAN_2D or self.dataset_type == ProcessSelDataType.WHOLE_SCAN_3D:
             new_slice = self.slice_id_selected + slice_inc
             if 0 <= new_slice < self.app.dataset.slice_count():
-                self.display_image(self.denoised[new_slice])
+                self.display_image(self.processed[new_slice])
                 self.slice_id_selected = new_slice
             elif new_slice < 0:
                 self.slice_id_selected = 0
@@ -304,7 +369,7 @@ class DenoisedWindow(QDialog):
 
     def signal_ok(self):
         
-        self.app.set_denoised_dataset(self.denoised)
+        self.app.set_processed_dataset(self.processed)
 
     def resizeEvent(self, event):  # pylint: disable=C0103
         """Keep the viewport centered and adjust zoom on window resize."""
@@ -315,7 +380,7 @@ class DenoisedWindow(QDialog):
         
         
 
-class DenoisedViewWidget(QScrollArea):
+class ProcessedViewWidget(QScrollArea):
     """Widget providing an interactive viewport."""
 
     # @TODO app is obsolete here, generate new class
