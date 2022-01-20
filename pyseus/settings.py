@@ -33,6 +33,6 @@ class ProcessRegType(IntEnum):
     """ Enumeration definition for regularisation type of processed dataset"""
 
     TV_L1 = 0 
-    TV_ROF = 1
+    HUB_L2 = 1
     TV_L2 = 2
-    TGV2 = 3
+    TGV2_L2 = 3

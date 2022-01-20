@@ -40,7 +40,6 @@ class TGV():
                 scipy.sparse.coo_matrix((dat, (row, col.flatten())), shape=(L * M * N, L * M * N))
 
 
-
         nabla = scipy.sparse.vstack([nabla_x, nabla_y, nabla_z])
 
         return nabla, nabla_x, nabla_y, nabla_z
@@ -90,7 +89,7 @@ class TGV():
         return K
 
 
-    def proj_ball(self, Y, lamb):
+    def proj_ball(self, Y, alpha):
         """
         Projection to a ball as described in Equation (6)
         @param Y: either 2xMN or 4xMN
@@ -98,7 +97,7 @@ class TGV():
         @return: projection result either 2xMN or 4xMN
         """
         norm = np.linalg.norm(Y, axis=0)
-        projection = Y / np.maximum(1, 1/lamb * norm)
+        projection = Y / np.maximum(alpha, norm)
     
         return projection
 
@@ -155,8 +154,7 @@ class TGV():
         
         
 
-        f = np.zeros(img_noisy.shape)
-        f[:,:,:] = img_noisy
+        f = img_noisy.copy()
 
         L, M, N = f.shape
         img = img_noisy.reshape(L*M*N)
@@ -189,10 +187,10 @@ class TGV():
             # To calculate the data term projection you can use:
             # prox_sum_l1(x, f, tau, Wis)
             # where x is the parameter of the projection function i.e. u^(n+(1/2))
-            u_vec_old = u_vec
-            x = u_vec - tau * k.T @ p_vec
-            u = self.prox_G(x[0:L*M*N], img, tau, lambd)
-            v = x[L*M*N:12*L*M*N]
+            u_vec_old = u_vec.copy()
+            u_vec = u_vec - tau * k.T @ p_vec
+            u = self.prox_G(u_vec[0:L*M*N], img, tau, lambd)
+            v = u_vec[L*M*N:12*L*M*N]
             u_vec = np.concatenate([u, v])
 
             u_bar = 2*u_vec - u_vec_old

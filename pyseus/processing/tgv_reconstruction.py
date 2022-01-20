@@ -49,30 +49,30 @@ class TGV_Reco():
 
         return nabla, nabla_x, nabla_y, nabla_z
 
+    # not used anymore bc r has the prox op already
+    # def prox_U(self, x, uk, tau, gamma):
+    #     """
+    #     Used for calculation of the dataterm projection
 
-    def prox_U(self, x, uk, tau, gamma):
-        """
-        Used for calculation of the dataterm projection
+    #     @param uk: initial reconstructed image from raw data
 
-        @param uk: initial reconstructed image from raw data
-
-        compute pi with pi = \bar x + tau * W_i
-        @param u: MN
-        @param tau: scalar
-        @param Wis: MN x K
-        @param f: MN x K
-        """
+    #     compute pi with pi = \bar x + tau * W_i
+    #     @param u: MN
+    #     @param tau: scalar
+    #     @param Wis: MN x K
+    #     @param f: MN x K
+    #     """
       
-        prox = (uk*tau/gamma + x)/(1 + tau/gamma)
+    #     prox = (uk*tau/gamma + x)/(1 + tau/gamma)
 
-        # bei nur 2 einträgen (f, pis) macht median dasselbe wie mean und nimmt den mittelwert
-        # egal wieviele einträge, über eine achse nimmt er nur den median und diese
-        # dimension verschwindet dann sogar, d.h. aus shape (M*N,2) wird dann (M*N,)
-        # Rückgabe hat also K dimension wieder weniger
-        # pis = u[...] + tau
-        # prox = np.median((uk,pis), axis=0)
+    #     # bei nur 2 einträgen (f, pis) macht median dasselbe wie mean und nimmt den mittelwert
+    #     # egal wieviele einträge, über eine achse nimmt er nur den median und diese
+    #     # dimension verschwindet dann sogar, d.h. aus shape (M*N,2) wird dann (M*N,)
+    #     # Rückgabe hat also K dimension wieder weniger
+    #     # pis = u[...] + tau
+    #     # prox = np.median((uk,pis), axis=0)
 
-        return prox
+    #     return prox
 
 
     def make_K(self, L, M, N):
@@ -93,7 +93,7 @@ class TGV_Reco():
         return K
 
 
-    def proj_ball(self, Z, alpha_lambda):
+    def proj_ball(self, Z, alpha):
         """
         Projection to a ball as described in Equation (6)
         @param Y: either 2xMN or 4xMN
@@ -101,7 +101,7 @@ class TGV_Reco():
         @return: projection result either 2xMN or 4xMN
         """
         norm = np.linalg.norm(Z, axis=0)
-        projection = Z / np.maximum(1, 1/alpha_lambda * norm)
+        projection = Z / np.maximum(alpha, norm)
     
         return projection
 
@@ -134,10 +134,10 @@ class TGV_Reco():
         return np.sum( r_IFT, axis=0)
 
 
-    def prox_R(self, R, sigma, d_init, lambd):
+    def prox_R(self, R, sigma, lambd):
         
-        #return (R-sigma*d_init)/(1+ sigma) # this is from TGV knoll thesis?
-        return (R*lambd)/(lambd+ sigma) # this is from knoll stollberger tgv paper, makes more sense
+        
+        return (R*lambd)/(lambd+ sigma) # this is from knoll stollberger tgv paper
 
    # if its a big dataset, a lot of RAM is needed because all the raw data to process will be 
     # stored in the RAM
@@ -185,7 +185,6 @@ class TGV_Reco():
 
         
         # Parameters
-        gamma = 10
         beta = 1
         theta = 1
         mu = 0.5
@@ -230,10 +229,6 @@ class TGV_Reco():
         # list (not array!) which contains n arrays, each with length (xxxx, )
         
 
-        # original picture of sample reconstructed from initial mri sample data
-        # fourier inverse, coil correction and sum (or sum of squares?) over all coil pictures
-        uk = np.ravel(self.DAH(d, sens_coils,sparse_mask))
-
         # temp vector for DAH*r 
         DAHr = np.zeros_like(u_vec, dtype=complex)
 
@@ -247,17 +242,16 @@ class TGV_Reco():
             #add result of DAHr only to first L*M*N entries, because they belong to the u_vec , v_vec should not be influenced
             DAHr[0:L*M*N] = np.ravel(self.DAH(r.reshape(C,L,M,N), sens_coils, sparse_mask))
             
+            # prox for not necessary
             u_vec_old = u_vec
-            x = u_vec - tau * (k.T @ p_vec + DAHr)
-            #u = self.prox_U(x[0:L*M*N], uk, tau, gamma)
-            u = x[0:L*M*N]
-            v = x[L*M*N:12*L*M*N]
-            u_vec = np.concatenate([u, v])
+            u_vec = u_vec - tau_n * (k.T @ p_vec + DAHr)
+            u = u_vec[0:L*M*N]
+            # v = u_vec[L*M*N:12*L*M*N]
+            # u_vec = np.concatenate([u, v])
 
-            #tau_n = tau_n_old*(1+theta)**0.5
-            #theta = tau_n/tau_n_old
-            #sigma = beta * tau_n
-
+            tau_n = tau_n_old*(1+theta)**0.5
+            theta = tau_n/tau_n_old
+            sigma = beta * tau_n
 
             u_bar = u_vec + theta * (u_vec - u_vec_old)
 
@@ -268,9 +262,11 @@ class TGV_Reco():
             
 
             r_temp = r + np.ravel(sigma*(self.DA(u_bar[0:L*M*N].reshape(L,M,N), sens_coils, sparse_mask)-d))
-            r = np.ravel(self.prox_R(r_temp, sigma, np.ravel(d), lambd))
+            r = np.ravel(self.prox_R(r_temp, sigma, lambd))
 
-            #tau_n = tau_n * mu
+            #(beta**0.5)*tau_n*
+
+            tau_n = tau_n * mu
 
 
         u = u.reshape(L,M,N)

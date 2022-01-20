@@ -131,8 +131,11 @@ class PySeus():  # pylint: disable=R0902
         else:
             QMessageBox.warning(self.window, "Pyseus", "Unknown file format.")
 
-    def load_data(self, data):
+    def load_data(self, data, data_type=DataType.IMAGE):
         """Try to load *data*. See also *setup_dataset*."""
+        self.data_type = data_type
+        self.mode.set_source(self.data_type)
+
         new_dataset = Raw()
         self.setup_dataset(data, new_dataset)
     
@@ -280,21 +283,32 @@ class PySeus():  # pylint: disable=R0902
 
     def set_processed_dataset(self,dataset):
         """Save processed data in Dataset after confirmation in ProcessDialog."""
-        if dataset.ndim == 2:
-            slice_id = self.slice
-        elif dataset.ndim == 3:
-            slice_id = -1
-        else:
-            return
 
-        old_min, old_max = self.dataset.get_minmax_pixeldata(slice_id)
-        dataset -= (numpy.min(dataset) - old_min)
-        dataset *= (old_max / numpy.max(dataset))
-        self.dataset.set_pixeldata(dataset, slice_id)
+        if DataType.IMAGE:
+            #TODO: that should be changed, thats just for temporary fitting data into a dataset which similar to the processed data
+            # if a processed 2D image is put back in a 3D dataset, bc all the 3D data has the same display window with values for black and white
+            # use this case just for denoising?
+            if dataset.ndim == 2:
+                slice_id = self.slice
 
-        # if dataset.ndim == 3:
-        #     self._set_slice(self.dataset.slice_count() // 2)
+                old_min, old_max = self.dataset.get_minmax_pixeldata(slice_id)
+                dataset -= (numpy.min(dataset) - old_min)
+                dataset *= (old_max / numpy.max(dataset))
+                self.dataset.set_pixeldata(dataset, slice_id)
+            # for 3D data, the window just needs to be setup for the new values.
+            elif dataset.ndim == 3:
+                slice_id = -1
+                self.dataset.set_pixeldata(dataset, slice_id)
+                self._set_slice(self.dataset.slice_count() // 2)
+                self.mode.setup_window(self.dataset.get_pixeldata())
+            else:
+                return
 
+        elif DataType.KSPACE:
+            
+            self.load_data(dataset, DataType.IMAGE)
+
+        
         self.refresh()
         self.window.view.zoom_fit()
 

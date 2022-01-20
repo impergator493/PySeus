@@ -30,7 +30,7 @@ class ProcessDialog(QDialog):
         vlayout_sel = QVBoxLayout()
         vlayout_type = QVBoxLayout()
         grp_box_sel = QGroupBox("Data Selection")
-        grp_box_type = QGroupBox("Regularization Type")
+        grp_box_type = QGroupBox("Model Type")
 
         hlayout = QHBoxLayout()
         # Take "Denoising" or "Reconstruction" as title straight from the ENUM
@@ -53,13 +53,13 @@ class ProcessDialog(QDialog):
         self.grp_tv_type = QButtonGroup()
         self.btn_tv_L1 = QRadioButton("TV-L1")
         self.btn_tv_L1.setChecked(True)
-        self.btn_tv_ROF = QRadioButton("HuberROF")
+        self.btn_hub_L2 = QRadioButton("Huber-L2")
         self.btn_tv_L2 = QRadioButton("TV-L2")
-        self.btn_tgv2 = QRadioButton("TGV2")
+        self.btn_tgv2_L2 = QRadioButton("TGV2-L2")
         self.grp_tv_type.addButton(self.btn_tv_L1, int(ProcessRegType.TV_L1))
-        self.grp_tv_type.addButton(self.btn_tv_ROF, int(ProcessRegType.TV_ROF))
+        self.grp_tv_type.addButton(self.btn_hub_L2, int(ProcessRegType.HUB_L2))
         self.grp_tv_type.addButton(self.btn_tv_L2, int(ProcessRegType.TV_L2))
-        self.grp_tv_type.addButton(self.btn_tgv2, int(ProcessRegType.TGV2))
+        self.grp_tv_type.addButton(self.btn_tgv2_L2, int(ProcessRegType.TGV2_L2))
         
         # form layout for parameter input for processing algorithm
         
@@ -101,19 +101,19 @@ class ProcessDialog(QDialog):
         v_form1.addRow("Alpha1",self.qline_alpha1)
         
         self.btn_tv_L1.clicked.connect(lambda: self.qline_alpha.hide())
-        self.btn_tv_ROF.clicked.connect(lambda: self.qline_alpha.show())
+        self.btn_hub_L2.clicked.connect(lambda: self.qline_alpha.show())
         self.btn_tv_L2.clicked.connect(lambda: self.qline_alpha.hide())
-        self.btn_tgv2.clicked.connect(lambda: self.qline_alpha.hide())
+        self.btn_tgv2_L2.clicked.connect(lambda: self.qline_alpha.hide())
 
         self.btn_tv_L1.clicked.connect(lambda: self.qline_alpha0.hide())
-        self.btn_tv_ROF.clicked.connect(lambda: self.qline_alpha0.hide())
+        self.btn_hub_L2.clicked.connect(lambda: self.qline_alpha0.hide())
         self.btn_tv_L2.clicked.connect(lambda: self.qline_alpha0.hide())
-        self.btn_tgv2.clicked.connect(lambda: self.qline_alpha0.show())
+        self.btn_tgv2_L2.clicked.connect(lambda: self.qline_alpha0.show())
 
         self.btn_tv_L1.clicked.connect(lambda: self.qline_alpha1.hide())
-        self.btn_tv_ROF.clicked.connect(lambda: self.qline_alpha1.hide())
+        self.btn_hub_L2.clicked.connect(lambda: self.qline_alpha1.hide())
         self.btn_tv_L2.clicked.connect(lambda: self.qline_alpha1.hide())
-        self.btn_tgv2.clicked.connect(lambda: self.qline_alpha1.show())
+        self.btn_tgv2_L2.clicked.connect(lambda: self.qline_alpha1.show())
         
         
         # function without brackets just connects the function, but does not call it
@@ -133,9 +133,9 @@ class ProcessDialog(QDialog):
         grp_box_sel.setLayout(vlayout_sel)
 
         vlayout_type.addWidget(self.btn_tv_L1)
-        vlayout_type.addWidget(self.btn_tv_ROF)
+        vlayout_type.addWidget(self.btn_hub_L2)
         vlayout_type.addWidget(self.btn_tv_L2)
-        vlayout_type.addWidget(self.btn_tgv2)
+        vlayout_type.addWidget(self.btn_tgv2_L2)
         grp_box_type.setLayout(vlayout_type)
 
         vlayout_sel_par.addWidget(grp_box_sel)
@@ -231,7 +231,7 @@ class ProcessedWindow(QDialog):
         #TODO Remove fixed slice id
         if self.dataset_type == ProcessSelDataType.WHOLE_SCAN_2D or self.dataset_type == ProcessSelDataType.WHOLE_SCAN_3D :
             #self.slice_id_selected = (self.app.dataset.slice_count() // 2)
-            self.slice_id_selected = 10
+            self.slice_id_selected = 3
             processed_displayed = self.processed[self.slice_id_selected,:,:]
         elif self.dataset_type == ProcessSelDataType.SLICE_2D:
             processed_displayed = self.processed
@@ -256,7 +256,7 @@ class ProcessedWindow(QDialog):
                 tv_class = TV()
                 tv_type_func = tv_class.tv_denoising_L1
                 params = (lambd, iterations)
-            if tv_type == ProcessRegType.TV_ROF:
+            if tv_type == ProcessRegType.HUB_L2:
                 tv_class = TV()
                 tv_type_func = tv_class.tv_denoising_huberROF
                 params = (lambd, iterations, alpha)
@@ -264,7 +264,7 @@ class ProcessedWindow(QDialog):
                 tv_class = TV()
                 tv_type_func = tv_class.tv_denoising_L2
                 params = (lambd, iterations)
-            if tv_type == ProcessRegType.TGV2:
+            if tv_type == ProcessRegType.TGV2_L2:
                 #tv_type_func not needed, just one possible case for tgv
                 tv_class = TGV()
                 tv_type_func = None
@@ -285,7 +285,7 @@ class ProcessedWindow(QDialog):
                 slice_id = self.app.get_slice_id()
                 #@TODO: Remove selection for specific Slices again, just to see if it works in general
                 if self.dataset_type == ProcessSelDataType.WHOLE_SCAN_2D or self.dataset_type == ProcessSelDataType.WHOLE_SCAN_3D:
-                    dataset_kspace = self.app.dataset.get_reco_pixeldata(scan_id, -1)[:,40:70,:,:]#dataset_noisy = self.app.dataset.get_pixeldata(-1)
+                    dataset_kspace = self.app.dataset.get_reco_pixeldata(scan_id, -1)[:,69:75,:,:]#dataset_noisy = self.app.dataset.get_pixeldata(-1)
                 elif self.dataset_type == ProcessSelDataType.SLICE_2D:
                     dataset_kspace = self.app.dataset.get_reco_pixeldata(scan_id, slice_id)#dataset_noisy = self.app.dataset.get_pixeldata(self.app.get_slice_id())
 
@@ -300,7 +300,7 @@ class ProcessedWindow(QDialog):
                 if use_coilmap:
                     if self.dataset_type == ProcessSelDataType.WHOLE_SCAN_2D or self.dataset_type == ProcessSelDataType.WHOLE_SCAN_3D:
                         #TODO Remove selection for specific slices later again
-                        data_coils = self.app.dataset.get_coil_data(-1)[:,40:70,:,:]
+                        data_coils = self.app.dataset.get_coil_data(-1)[:,69:75,:,:]
                     elif self.dataset_type == ProcessSelDataType.SLICE_2D:
                         data_coils = self.app.dataset.get_coil_data(slice_id)
 
@@ -316,7 +316,7 @@ class ProcessedWindow(QDialog):
                     #tv_class = TV()
                     #tv_type_func = tv_class.tv_denoising_L2
                     #params = (lambd, iterations)
-                if tv_type == ProcessRegType.TGV2:
+                if tv_type == ProcessRegType.TGV2_L2:
                     #tv_type_func not needed, just one possible case for tgv
                     tv_class = TGV_Reco()
                     tv_type_func = None

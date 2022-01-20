@@ -223,7 +223,7 @@ class TV():
         return img_denoised
 
 
-# H1 = L2 denoising
+# L2 denoising
 # M: @TODO define as class method?
     def tv_denoising_L2(self,img, lambda_rat, iterations):
         """ Denoising with TV for regularization term and L2 on data term"""

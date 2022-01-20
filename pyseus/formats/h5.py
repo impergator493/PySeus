@@ -93,6 +93,7 @@ class H5(BaseFormat):
 
             if len(nodes) == 1 and (self.data_type == DataType.IMAGE or self.data_type == DataType.KSPACE):
                 self.subpath = nodes[0]
+            
             elif self.data_type == DataType.KSPACE:
                 self.subpath_real = _openH5Explorer("Select Real Dataset")
                 self.subpath_imag = _openH5Explorer("Select Imag Dataset")
@@ -162,14 +163,14 @@ class H5(BaseFormat):
                     return (numpy.asarray([file_[self.subpath_real]]) + 1j*numpy.asarray([file_[self.subpath_imag]]))
 
                 if self.dims == 3:  # multiple slices
-                    return (numpy.asarray(file_[self.subpath]) + 1j*numpy.asarray(file_[self.subpath_imag]))
+                    return (numpy.asarray(file_[self.subpath_real]) + 1j*numpy.asarray(file_[self.subpath_imag]))
 
                 if self.dims == 4:  # multiple scans
                     return (numpy.asarray(file_[self.subpath_real][scan]) + 1j*numpy.asarray(file_[self.subpath_imag][scan]))
 
                 if self.dims == 5:
                     dim_4, dim_5 = divmod(scan, file_[self.subpath_real].shape[1])
-                    return (numpy.asarray(file_[self.subpath][dim_4][dim_5]) + 1j*numpy.asarray(file_[self.subpath][dim_4][dim_5]))
+                    return (numpy.asarray(file_[self.subpath_real][dim_4][dim_5]) + 1j*numpy.asarray(file_[self.subpath_imag][dim_4][dim_5]))
                 
              
 
@@ -191,9 +192,9 @@ class H5(BaseFormat):
                 if self.dims == 5:
                     dim_5, dim_coil = divmod(scan, file_[self.subpath_real].shape[1])
                     if slice_ ==-1:
-                        return (numpy.asarray(file_[self.subpath][dim_5]) + 1j*numpy.asarray(file_[self.subpath][dim_5]))[:,:,:,:]
+                        return (numpy.asarray(file_[self.subpath_real][dim_5]) + 1j*numpy.asarray(file_[self.subpath_imag][dim_5]))[:,:,:,:]
                     else:
-                        return (numpy.asarray(file_[self.subpath][dim_5]) + 1j*numpy.asarray(file_[self.subpath][dim_5]))[:,slice_:slice_+1,:,:]
+                        return (numpy.asarray(file_[self.subpath_real][dim_5]) + 1j*numpy.asarray(file_[self.subpath_imag][dim_5]))[:,slice_:slice_+1,:,:]
 
 
         return []

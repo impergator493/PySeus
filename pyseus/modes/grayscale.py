@@ -23,24 +23,24 @@ class Grayscale(BaseMode):
     def setup_menu(cls, app, menu, ami):
         ami(menu, "&Gray - Amplitude - Image", partial(cls.start, app, DataType.IMAGE))
         ami(menu, "&Gray - Phase", partial(cls.start, app, DataType.PHASE))
-        ami(menu, "&Gray - Amplitude - Log(k-space)", partial(cls.start, app, DataType.KSPACE))
+        ami(menu, "&Gray - Amplitude - Root(k-space)", partial(cls.start, app, DataType.KSPACE))
 
     @classmethod
     def start(cls, app, src):  # pylint: disable=W0221
         if not isinstance(app.mode, cls):
             app.mode = cls()
         app.mode.set_source(src)
-        app.refresh()
+        app.load_scan()
 
     def __init__(self):
         BaseMode.__init__(self)
 
         self.source = DataType.IMAGE
         """Determines wheter (IMAGE) amplitude or PHASE information from the
-        data is us or the KSPACE FFT representation. Default is IMAGE amplitude."""
+        data is used or the KSPACE FFT representation. Default is IMAGE amplitude."""
 
         # factor for amplitude representation of k-space
-        self.exp_fft = 0.3
+        self.exp_kspace = 0.3
 
     def prepare(self, data):
         data = self.prepare_raw(data)
@@ -53,7 +53,7 @@ class Grayscale(BaseMode):
         elif self.source == DataType.IMAGE:
             data = numpy.absolute(data).astype(float)
         elif self.source == DataType.KSPACE:
-            data = ((numpy.absolute(numpy.fft.fftshift(data)))**self.exp_fft).astype(float)
+            data = ((numpy.absolute(numpy.fft.fftshift(data)))**self.exp_kspace).astype(float)
         
         return data
 
@@ -75,7 +75,7 @@ class Grayscale(BaseMode):
             self.data_min = numpy.amin(data)
             self.data_max = numpy.amax(data)
         elif self.source == DataType.KSPACE:
-            data = (numpy.absolute(data))**self.exp_fft
+            data = (numpy.absolute(data))**self.exp_kspace
             self.data_min = numpy.amin(data)
             self.data_max = numpy.amax(data)
         self.reset_window()
@@ -86,7 +86,7 @@ class Grayscale(BaseMode):
             self.black = numpy.amin(data)
             self.white = numpy.amax(data)
         elif self.source == DataType.KSPACE:
-            data = (numpy.absolute(data))**self.exp_fft
+            data = (numpy.absolute(data))**self.exp_kspace
             self.black = numpy.amin(data)
             self.white = numpy.amax(data)
 
