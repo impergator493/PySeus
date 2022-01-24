@@ -1,17 +1,20 @@
 from PySide2.QtWidgets import QBoxLayout, QButtonGroup, QCheckBox, QDesktopWidget, QDialog, QDialogButtonBox, QFormLayout, QGroupBox, QLayout, QLineEdit, QMainWindow, QAction, QLabel, QFileDialog, \
                               QFrame, QPushButton, QRadioButton, QScrollArea, QSizePolicy, QVBoxLayout, QHBoxLayout, QWidget
 
+from pyseus.processing.tv_reconstruction import TV_Reco
+
 
 from ..settings import ProcessType, ProcessSelDataType, ProcessRegType, DataType
 
 from pyseus.processing.threading_process import ProcessThread
-from pyseus.processing.tv import TV
-from pyseus.processing.tgv import TGV
+from pyseus.processing.tv_denoising import TV_Denoise
+from pyseus.processing.tgv_denoising import TGV_Denoise
 from pyseus.processing.tgv_reconstruction import TGV_Reco
 from pyseus.modes.grayscale import Grayscale
 from PySide2.QtCore import Qt
 import numpy
 import scipy
+import gc
 
 
 
@@ -253,20 +256,20 @@ class ProcessedWindow(QDialog):
                 dataset_noisy = self.app.dataset.get_pixeldata(self.app.get_slice_id())
 
             if tv_type == ProcessRegType.TV_L1:
-                tv_class = TV()
+                tv_class = TV_Denoise()
                 tv_type_func = tv_class.tv_denoising_L1
                 params = (lambd, iterations)
             if tv_type == ProcessRegType.HUB_L2:
-                tv_class = TV()
+                tv_class = TV_Denoise()
                 tv_type_func = tv_class.tv_denoising_huberROF
                 params = (lambd, iterations, alpha)
             if tv_type == ProcessRegType.TV_L2:
-                tv_class = TV()
+                tv_class = TV_Denoise()
                 tv_type_func = tv_class.tv_denoising_L2
                 params = (lambd, iterations)
             if tv_type == ProcessRegType.TGV2_L2:
                 #tv_type_func not needed, just one possible case for tgv
-                tv_class = TGV()
+                tv_class = TGV_Denoise()
                 tv_type_func = None
                 params = (lambd, alpha0, alpha1, iterations)
 
@@ -279,56 +282,57 @@ class ProcessedWindow(QDialog):
             if self.app.dataset.get_data_type() != DataType.KSPACE:
                 raise TypeError("Loaded dataset must be kspace data")
 
-            else:
 
-                scan_id = self.app.dataset.scan
-                slice_id = self.app.get_slice_id()
-                #@TODO: Remove selection for specific Slices again, just to see if it works in general
+            scan_id = self.app.dataset.scan
+            slice_id = self.app.get_slice_id()
+            #@TODO: Remove selection for specific Slices again, just to see if it works in general
+            if self.dataset_type == ProcessSelDataType.WHOLE_SCAN_2D or self.dataset_type == ProcessSelDataType.WHOLE_SCAN_3D:
+                dataset_kspace = self.app.dataset.get_reco_pixeldata(scan_id, -1)[:,69:75,:,:]#dataset_noisy = self.app.dataset.get_pixeldata(-1)
+            elif self.dataset_type == ProcessSelDataType.SLICE_2D:
+                dataset_kspace = self.app.dataset.get_reco_pixeldata(scan_id, slice_id)#dataset_noisy = self.app.dataset.get_pixeldata(self.app.get_slice_id())
+
+            sparse_mask = numpy.ones_like(dataset_kspace)
+            data_coils = numpy.ones_like(dataset_kspace)
+
+            # if no sparse mask given, sample is fully sampled and the whole array is 1
+            if use_spmask:
+                pass
+                # add function to import sparse mask or to create one
+            # if no sensitivity map is given, the whole array contains 1
+            if use_coilmap:
                 if self.dataset_type == ProcessSelDataType.WHOLE_SCAN_2D or self.dataset_type == ProcessSelDataType.WHOLE_SCAN_3D:
-                    dataset_kspace = self.app.dataset.get_reco_pixeldata(scan_id, -1)[:,69:75,:,:]#dataset_noisy = self.app.dataset.get_pixeldata(-1)
+                    #TODO Remove selection for specific slices later again
+                    data_coils = self.app.dataset.get_coil_data(-1)[:,69:75,:,:]
                 elif self.dataset_type == ProcessSelDataType.SLICE_2D:
-                    dataset_kspace = self.app.dataset.get_reco_pixeldata(scan_id, slice_id)#dataset_noisy = self.app.dataset.get_pixeldata(self.app.get_slice_id())
+                    data_coils = self.app.dataset.get_coil_data(slice_id)
 
-                sparse_mask = numpy.ones_like(dataset_kspace)
-                data_coils = numpy.ones_like(dataset_kspace)
+            #if tv_type == ProcessRegType.TV_L1:
+                #tv_class = TV()
+                #tv_type_func = tv_class.tv_denoising_L1
+                #params = (lambd, iterations)
+            #if tv_type == ProcessRegType.TV_ROF:
+                #tv_class = TV()
+                #tv_type_func = tv_class.tv_denoising_huberROF
+                #params = (lambd, iterations, alpha)
+            if tv_type == ProcessRegType.TV_L2:
+                tv_class = TV_Reco()
+                tv_type_func = tv_class.tv_l2_reconstruction
+                params = (lambd, iterations)
+            if tv_type == ProcessRegType.TGV2_L2:
+                #tv_type_func not needed, just one possible case for tgv
+                tv_class = TGV_Reco()
+                tv_type_func = None
+                params = (lambd, alpha0, alpha1, iterations)
 
-                # if no sparse mask given, sample is fully sampled and the whole array is 1
-                if use_spmask:
-                    pass
-                    # add function to import sparse mask or to create one
-                # if no sensitivity map is given, the whole array contains 1
-                if use_coilmap:
-                    if self.dataset_type == ProcessSelDataType.WHOLE_SCAN_2D or self.dataset_type == ProcessSelDataType.WHOLE_SCAN_3D:
-                        #TODO Remove selection for specific slices later again
-                        data_coils = self.app.dataset.get_coil_data(-1)[:,69:75,:,:]
-                    elif self.dataset_type == ProcessSelDataType.SLICE_2D:
-                        data_coils = self.app.dataset.get_coil_data(slice_id)
+                # zum probieren um debuggen zu können temporär:
+                #self.calculation_callback(tv_class.tgv2_reconstruction_gen(dataset_type, dataset_kspace, 
+                #                                                            data_coils, sparse_mask, *params))
 
-                #if tv_type == ProcessRegType.TV_L1:
-                    #tv_class = TV()
-                    #tv_type_func = tv_class.tv_denoising_L1
-                    #params = (lambd, iterations)
-                #if tv_type == ProcessRegType.TV_ROF:
-                    #tv_class = TV()
-                    #tv_type_func = tv_class.tv_denoising_huberROF
-                    #params = (lambd, iterations, alpha)
-                #if tv_type == ProcessRegType.TV_L2:
-                    #tv_class = TV()
-                    #tv_type_func = tv_class.tv_denoising_L2
-                    #params = (lambd, iterations)
-                if tv_type == ProcessRegType.TGV2_L2:
-                    #tv_type_func not needed, just one possible case for tgv
-                    tv_class = TGV_Reco()
-                    tv_type_func = None
-                    params = (lambd, alpha0, alpha1, iterations)
+            thread_processed = ProcessThread(self, tv_class, tv_type_func, dataset_type, dataset_kspace, params, sparse_mask, data_coils)
+            thread_processed.output.connect(self.calculation_callback)
+            thread_processed.start()
 
-                    # zum probieren um debuggen zu können temporär:
-                    self.calculation_callback(tv_class.tgv2_reconstruction_gen(dataset_type, dataset_kspace, 
-                                                                                data_coils, sparse_mask, *params))
-
-                # thread_processed = ProcessThread(self, tv_class, tv_type_func, dataset_type, dataset_kspace, params, sparse_mask, data_coils)
-                # thread_processed.output.connect(self.calculation_callback)
-                # thread_processed.start()
+            
 
         # Threading
         # should be done with .start() method, not with run

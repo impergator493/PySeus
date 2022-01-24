@@ -8,11 +8,16 @@ import scipy.sparse as sp
 from ..settings import ProcessSelDataType
 
 # @TODO: womöglich als methode in TV klasse inkludieren?
-class TGV(): 
+class TGV_Denoise(): 
 
 
     def __init__(self):
-        pass
+        
+        self.h_inv = 1.0
+        self.hz_inv = 1.0
+
+         # Lipschitz constant of K, according to knoll paper TGV reco and denoising, with iso spacing for x and y
+        self.lip_inv = np.sqrt((2*(1/self.h_inv)**2)/(16+(1/self.h_inv)**2+np.sqrt(32*(1/self.h_inv)**2+(1/self.h_inv)**4)))
 
 
     def _make_nabla(self,L, M, N):
@@ -30,14 +35,14 @@ class TGV():
         # which just contains the 1 and -1 on the 
         # specific place and is 0 otherwhise. Thats why its a (L*M*N, L*M*N) matrix
 
-        nabla_x = scipy.sparse.coo_matrix((dat, (row, col_xp.flatten())), shape=(L * M * N, L * M * N)) - \
-                scipy.sparse.coo_matrix((dat, (row, col.flatten())), shape=(L * M * N, L * M * N))
+        nabla_x = (scipy.sparse.coo_matrix((dat, (row, col_xp.flatten())), shape=(L * M * N, L * M * N)) -
+                scipy.sparse.coo_matrix((dat, (row, col.flatten())), shape=(L * M * N, L * M * N)))*self.h_inv
 
-        nabla_y = scipy.sparse.coo_matrix((dat, (row, col_yp.flatten())), shape=(L * M * N, L * M * N)) - \
-                scipy.sparse.coo_matrix((dat, (row, col.flatten())), shape=(L * M * N, L * M * N))
+        nabla_y = (scipy.sparse.coo_matrix((dat, (row, col_yp.flatten())), shape=(L * M * N, L * M * N)) -
+                scipy.sparse.coo_matrix((dat, (row, col.flatten())), shape=(L * M * N, L * M * N)))*self.h_inv
         
-        nabla_z = scipy.sparse.coo_matrix((dat, (row, col_zp.flatten())), shape=(L * M * N, L * M * N)) - \
-                scipy.sparse.coo_matrix((dat, (row, col.flatten())), shape=(L * M * N, L * M * N))
+        nabla_z = (scipy.sparse.coo_matrix((dat, (row, col_zp.flatten())), shape=(L * M * N, L * M * N)) -
+                scipy.sparse.coo_matrix((dat, (row, col.flatten())), shape=(L * M * N, L * M * N)))*self.hz_inv
 
 
         nabla = scipy.sparse.vstack([nabla_x, nabla_y, nabla_z])
@@ -97,15 +102,15 @@ class TGV():
         @return: projection result either 2xMN or 4xMN
         """
         norm = np.linalg.norm(Y, axis=0)
-        projection = Y / np.maximum(alpha, norm)
+        projection = Y / np.maximum(1, norm/alpha)
     
         return projection
 
 
     def tgv2_denoising_gen(self, dataset_type, dataset_noisy, params):
 
-        # prepare artifical 3D dataset(1,M,N) for 2D image (M,N), because at least one entry
-        # in 3rd dimension is expected to be universal applicable 
+        # prepare artifical 3D dataset(1,M,N) for 2D image (M,N), because to be universal applicable at least one entry
+        # in 3rd dimension is expected  
         if dataset_type == ProcessSelDataType.SLICE_2D:
             temp = np.zeros((1,*dataset_noisy.shape))
             temp[0,:,:] = dataset_noisy
@@ -118,19 +123,20 @@ class TGV():
 
         elif dataset_type == ProcessSelDataType.WHOLE_SCAN_2D:
             
-            dataset_denoised = np.zeros(dataset_noisy.shape)
-            slices = dataset_noisy.shape[0]
-
-            # added newaxis, to have a 3D array altough it just contains 2D entries (3rd dim is length=1)
-            for index in range(0, slices):
-                
-                dataset_denoised[index,:,:] = self.tgv2_denoising(dataset_noisy[np.newaxis,index,:,:], *params)[0,:,:]
+            # set z gradient spaces to 1/0 = infinity, so that no gradient is z direction is calculated
+            # therefor every 2D picture is denoised individually
+            self.hz_inv = 0
+            
+            dataset_denoised = self.tgv2_denoising(dataset_noisy, *params)
 
             return dataset_denoised
 
 
         elif dataset_type == ProcessSelDataType.WHOLE_SCAN_3D:
             # keep dataset just as it is, if its allready 3D -> dataset_noisy = dataset_noisy
+
+            # set inverted z spacing to any number different then 0 for a 3D denoising
+            self.hz_inv = 1.0
 
             dataset_denoised = self.tgv2_denoising(dataset_noisy, *params)
 
@@ -152,7 +158,7 @@ class TGV():
         # star argument to take really the value of the variable as argument
         # if 2dim noisy data make it a 3D array, if 3D just let it be
         
-        
+        # inverted spacing is used so that h* = 0 is an infinite spacing
 
         f = img_noisy.copy()
 
@@ -162,8 +168,7 @@ class TGV():
         # make operators
         k = self.make_K(L,M,N)
 
-        # Lipschitz constant of K
-        Lip = np.sqrt(12)
+       
 
         # initialize primal variables
         u = np.zeros(L*M*N)
@@ -174,8 +179,8 @@ class TGV():
         q = np.zeros(9*L*M*N)
 
         # primal and dual step size
-        tau = 1 / Lip
-        sigma = 1 / Lip
+        tau = self.lip_inv
+        sigma = self.lip_inv
 
         u_vec = np.concatenate([u, v])
         p_vec = np.concatenate([p, q])

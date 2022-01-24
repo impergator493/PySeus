@@ -10,15 +10,19 @@ from ..settings import ProcessSelDataType
 
 
 
-class TV():
+class TV_Denoise():
 
     def __init__(self):
         
         self.tau = 0.01
 
-        self.h2 = 1.0
+        # inverted isotrop spacing x and y dim
+        self.h_inv = 1.0
+        # inverted spacing of z dim (slice)
+        self.hz_inv = 1.0
 
-        self.L2 = 8.0/self.h2
+        # according to chambolle pock TV denoising paper, invert h back for correct calculation according to original definition
+        self.L2 = 8.0/np.square(1/self.h_inv)
 
         self.sigma = 1./(self.L2*self.tau)
 
@@ -63,8 +67,8 @@ class TV():
         # 2 dim for x and y gradient values
         grad = np.zeros(((matrix.ndim,) + matrix.shape))
 
-        grad[0,0:-1,:] = (matrix[1:,:] -matrix[0:-1,:])
-        grad[1,:,0:-1] = (matrix[:,1:] -matrix[:,0:-1])
+        grad[0,0:-1,:] = (matrix[1:,:] -matrix[0:-1,:])*self.h_inv
+        grad[1,:,0:-1] = (matrix[:,1:] -matrix[:,0:-1])*self.h_inv
 
         return grad
 
@@ -81,8 +85,8 @@ class TV():
         
         # according to other program, first row/column should be taken from old, and last from old also but negative
         # the number specifies along which axis matrix should be concenated
-        div[0,:,:] = np.r_['0',matrix_div[0,0:-1,:], np.zeros((1,dim1_len))] -np.r_['0',np.zeros((1,dim1_len)), matrix_div[0,0:-1,:]]
-        div[1,:,:] = np.r_['1',matrix_div[1,:,0:-1], np.zeros((dim0_len,1))] -np.r_['1',np.zeros((dim0_len,1)), matrix_div[1,:,0:-1]] 
+        div[0,:,:] = np.r_['0',matrix_div[0,0:-1,:], np.zeros((1,dim1_len))] -np.r_['0',np.zeros((1,dim1_len)), matrix_div[0,0:-1,:]]*self.h_inv
+        div[1,:,:] = np.r_['1',matrix_div[1,:,0:-1], np.zeros((dim0_len,1))] -np.r_['1',np.zeros((dim0_len,1)), matrix_div[1,:,0:-1]]*self.h_inv
 
         return div[0] + div[1]
 
@@ -90,10 +94,10 @@ class TV():
 
                     
         grad = np.zeros(((dataset.ndim,) + dataset.shape))
-
-        grad[0,0:-1,:,:] = (dataset[1:,:,:] -dataset[0:-1,:,:])
-        grad[1,:,0:-1,:] = (dataset[:,1:,:] -dataset[:,0:-1,:])
-        grad[2,:,:,0:-1] = (dataset[:,:,1:] -dataset[:,:,0:-1])
+        # dim 0 should be z: z can have another spacing as x and y
+        grad[0,0:-1,:,:] = (dataset[1:,:,:] -dataset[0:-1,:,:])*self.hz_inv
+        grad[1,:,0:-1,:] = (dataset[:,1:,:] -dataset[:,0:-1,:])*self.h_inv
+        grad[2,:,:,0:-1] = (dataset[:,:,1:] -dataset[:,:,0:-1])*self.h_inv
 
         return grad
 
@@ -106,9 +110,9 @@ class TV():
         dim2_len = matrix_div.shape[3]
         
         # according to other program, first row/column should be taken from old, and last from old also but negative
-        div[0,:,:,:] = np.r_['0',matrix_div[0,0:-1,:,:], np.zeros((1,dim1_len,dim2_len))] -np.r_['0',np.zeros((1,dim1_len,dim2_len)), matrix_div[0,0:-1,:,:]]
-        div[1,:,:,:] = np.r_['1',matrix_div[1,:,0:-1,:], np.zeros((dim0_len,1,dim2_len))] -np.r_['1',np.zeros((dim0_len,1,dim2_len)), matrix_div[1,:,0:-1,:]]
-        div[2,:,:,:] = np.r_['2',matrix_div[2,:,:,0:-1], np.zeros((dim0_len,dim1_len,1))] -np.r_['2',np.zeros((dim0_len,dim1_len,1)), matrix_div[2,:,:,0:-1]] 
+        div[0,:,:,:] = np.r_['0',matrix_div[0,0:-1,:,:], np.zeros((1,dim1_len,dim2_len))] -np.r_['0',np.zeros((1,dim1_len,dim2_len)), matrix_div[0,0:-1,:,:]]*self.hz_inv
+        div[1,:,:,:] = np.r_['1',matrix_div[1,:,0:-1,:], np.zeros((dim0_len,1,dim2_len))] -np.r_['1',np.zeros((dim0_len,1,dim2_len)), matrix_div[1,:,0:-1,:]]*self.h_inv
+        div[2,:,:,:] = np.r_['2',matrix_div[2,:,:,0:-1], np.zeros((dim0_len,dim1_len,1))] -np.r_['2',np.zeros((dim0_len,dim1_len,1)), matrix_div[2,:,:,0:-1]]*self.h_inv
 
         return div[0] + div[1] + div[2]
 

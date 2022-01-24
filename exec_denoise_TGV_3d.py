@@ -1,11 +1,11 @@
 import numpy as np
-from pyseus.processing.tgv import TGV
+from pyseus.processing.tgv_denoising import TGV_Denoise
 
 import scipy.io
 import matplotlib.pyplot as plt
 
 
-obj = TGV()
+obj = TGV_Denoise()
 noisy = scipy.io.loadmat('./tests/cameraman_noise.mat')['im']
 
 noisy = noisy[np.newaxis,...]

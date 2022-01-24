@@ -10,7 +10,7 @@ import scipy.io
 
 import numpy as np
 
-from pyseus.processing.tv import TV
+from pyseus.processing.tv_denoising import TV_Denoise
 
 
 # Full paths do not work some times, windows issue or something else?
@@ -55,7 +55,7 @@ lambda_n = 8
 iter = 100
 
 # rather for saltn pepper noise
-a = TV()
+a = TV_Denoise()
 denoised_L1 = a.tv_denoising_L1(noisy, lambda_n, iter)
 denoised_L1 = (denoised_L1 - np.min(denoised_L1)) / (np.max(denoised_L1) - np.min(denoised_L1))
 

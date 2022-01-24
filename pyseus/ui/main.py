@@ -10,6 +10,7 @@ import sys
 import webbrowser
 from functools import partial
 import os
+import numpy
 
 from PySide2 import QtWidgets
 from PySide2.QtCore import QLine
@@ -112,6 +113,7 @@ class MainWindow(QMainWindow):  # pylint: disable=R0902
         self.file_menu = menu_bar.addMenu("&File")
         ami(self.file_menu, "&Load image", partial(self._action_open, DataType.IMAGE), "Ctrl+O")
         ami(self.file_menu, "&Load k-space", partial(self._action_open, DataType.KSPACE), "Ctrl+K")
+        ami(self.file_menu, "&Save dataset", partial(self._action_save), "Ctrl+S")
         ami(self.file_menu, "&Reload", self._action_reload, "Ctrl+L")
         self.file_menu.addSeparator()
         ami(self.file_menu, "&Quit", self._action_quit, "Ctrl+Q")
@@ -208,6 +210,14 @@ class MainWindow(QMainWindow):  # pylint: disable=R0902
             self._open_path = os.path.dirname(path)
             self.app.load_file(path, data_type)
 
+    def _action_save(self):
+        
+        path,_ = QFileDialog.getSaveFileName(None, "Save dataset",
+                                            self._open_path, "*.*")
+
+        with open(path,'wb') as file:
+            numpy.save(file,self.app.dataset.get_pixeldata())
+        
 
     def _action_reload(self):
         if self.app.dataset is not None:

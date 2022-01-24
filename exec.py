@@ -13,3 +13,5 @@ from pyseus.settings import DataType
 # before the string there must be a r -> r'.\asdf..'
 
 load('../../03_Daten/fourier_data_reconstruction/prob01.h5', DataType.KSPACE)
+
+#load('./tests/samples/sample.h5', DataType.IMAGE)

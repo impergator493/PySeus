@@ -1,8 +1,9 @@
 from PySide2.QtCore import QThread, Signal
 import numpy
-from pyseus.processing.tv import TV
-from pyseus.processing.tgv import TGV
+from pyseus.processing.tv_denoising import TV_Denoise
+from pyseus.processing.tgv_denoising import TGV_Denoise
 from pyseus.processing.tgv_reconstruction import TGV_Reco
+from pyseus.processing.tv_reconstruction import TV_Reco
 
 
 # One could remove TV Class here and pass to init function also the denoise_gen itself 
@@ -28,13 +29,15 @@ class ProcessThread(QThread):
         # *args: Passing a Function Using with an arbitrary number of positional argument
         
         # denoising
-        if isinstance(self.tv_class,TV):
+        if isinstance(self.tv_class,TV_Denoise):
             self.data_processed = self.tv_class.tv_denoising_gen(self.tv_function, self.dataset_type, self.dataset, self.params)
-        elif isinstance(self.tv_class,TGV):
+        elif isinstance(self.tv_class,TGV_Denoise):
             self.data_processed = self.tv_class.tgv2_denoising_gen(self.dataset_type, self.dataset, self.params)
         # reconstruction
         elif isinstance(self.tv_class, TGV_Reco):
-            self.data_processed = self.tv_class.tgv2_reconstruction(self.dataset_type,self.dataset, self.coil_data, self.sp_mask, self.params)
+            self.data_processed = self.tv_class.tgv2_reconstruction_gen(self.dataset_type,self.dataset, self.coil_data, self.sp_mask, self.params)
+        elif isinstance(self.tv_class, TV_Reco):
+            self.data_processed = self.tv_class.tv_reconstruction_gen(self.tv_function, self.dataset_type,self.dataset, self.coil_data, self.sp_mask, self.params)
         else:
             raise TypeError("No valid denoising class selected")            
         self.output.emit(self.data_processed)

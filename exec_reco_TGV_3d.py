@@ -97,7 +97,7 @@ sp_mask_bin[R<0.15] = 1
 
 obj = TGV_Reco()
 
-denoised_reco = obj.tgv2_reconstruction_gen(0,raw_data, coils, sp_mask_bin2, 10, 2, 1,100)
+denoised_reco = obj.tgv2_reconstruction_gen(0,raw_data, coils, sp_mask_bin2, 10, 2, 1,10)
 
 #np.save('denoise_u_veclist', denoised_reco)
 

@@ -14,3 +14,9 @@ docs/build/*
 
 # Ignore local backups
 backup/*
+data_3D.npy
+data_3D_programm.npy
+coil_3D.npy
+coil_3D_programm.npy
+tests/samples/denoised2.npy
+tests/samples/denoised.npy

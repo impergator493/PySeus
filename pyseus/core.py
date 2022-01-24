@@ -284,7 +284,7 @@ class PySeus():  # pylint: disable=R0902
     def set_processed_dataset(self,dataset):
         """Save processed data in Dataset after confirmation in ProcessDialog."""
 
-        if DataType.IMAGE:
+        if self.data_type == DataType.IMAGE:
             #TODO: that should be changed, thats just for temporary fitting data into a dataset which similar to the processed data
             # if a processed 2D image is put back in a 3D dataset, bc all the 3D data has the same display window with values for black and white
             # use this case just for denoising?
@@ -304,7 +304,7 @@ class PySeus():  # pylint: disable=R0902
             else:
                 return
 
-        elif DataType.KSPACE:
+        elif self.data_type == DataType.KSPACE:
             
             self.load_data(dataset, DataType.IMAGE)
 

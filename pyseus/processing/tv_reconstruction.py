@@ -5,11 +5,12 @@
 import numpy as np
 import scipy
 import scipy.sparse as sp
+import scipy.sparse.linalg as la
 
 from ..settings import ProcessSelDataType
 
 # @TODO: womöglich als methode in TV klasse inkludieren?
-class TGV_Reco(): 
+class TV_Reco(): 
 
 
     def __init__(self):
@@ -88,18 +89,14 @@ class TGV_Reco():
         @return: the K operator as described in Equation (5)
         """
         nabla, nabla_x, nabla_y, nabla_z = self._make_nabla(L, M, N)
-        neg_I = sp.identity(L*M*N) * -1
 
-        K = sp.bmat([[nabla_x, neg_I, None, None], [nabla_y, None, neg_I, None], [nabla_z, None, None, neg_I], \
-            [None, nabla_x, None, None], [None, nabla_y, None, None], [None, nabla_z, None, None], \
-            [None, None, nabla_x, None], [None, None, nabla_y, None], [None, None, nabla_z, None],
-            [None, None, None, nabla_x], [None, None, None, nabla_y], [None, None, None, nabla_z]])
+        K = sp.bmat([[nabla_x], [nabla_y], [nabla_z]])
 
 
         return K
 
 
-    def proj_ball(self, Z, alpha):
+    def proj_ball(self, Z):
         """
         Projection to a ball as described in Equation (6)
         @param Y: either 2xMN or 4xMN
@@ -107,7 +104,7 @@ class TGV_Reco():
         @return: projection result either 2xMN or 4xMN
         """
         norm = np.linalg.norm(Z, axis=0)
-        projection = Z / np.maximum(1, norm/alpha)
+        projection = Z / np.maximum(1, norm)
     
         return projection
 
@@ -147,13 +144,13 @@ class TGV_Reco():
 
    # if its a big dataset, a lot of RAM is needed because all the raw data to process will be 
     # stored in the RAM
-    def tgv2_reconstruction_gen(self, dataset_type, data_raw, data_coils, sparse_mask, params):
+    def tv_reconstruction_gen(self, func_reco, dataset_type, data_raw, data_coils, sparse_mask, params):
 
         if dataset_type == ProcessSelDataType.SLICE_2D:
             # Because of Coil data, correct slice has to be select with L=1 already when method is called
             # dat_real, imag are of dimension (C*L*M*N), if 2D with 3.Dim L is just length 1
             # make return value 2D array again
-            dataset_denoised = self.tgv2_reconstruction(data_raw, data_coils, sparse_mask, *params)[0,:,:]
+            dataset_denoised = func_reco(data_raw, data_coils, sparse_mask, *params)[0,:,:]
 
             return dataset_denoised
 
@@ -162,7 +159,7 @@ class TGV_Reco():
             self.hz_inv = 0
             self.fft_dim = (-2,-1)
               
-            dataset_denoised = self.tgv2_reconstruction(data_raw, data_coils, sparse_mask, *params)
+            dataset_denoised = func_reco(data_raw, data_coils, sparse_mask, *params)
 
             return dataset_denoised
 
@@ -171,15 +168,17 @@ class TGV_Reco():
             self.hz_inv = 1.0
             self.fft_dim = (-2,-1)
             
-            dataset_denoised = self.tgv2_reconstruction(data_raw, data_coils, sparse_mask, *params)
+            dataset_denoised = func_reco(data_raw, data_coils, sparse_mask, *params)
 
             return dataset_denoised
 
         else:
             raise TypeError("Dataset must be either 2D or 3D and matching the correct dataset type")
-        
+    
+    def tikhonov_l2_reconstruction():
+        pass
 
-    def tgv2_reconstruction(self, img_kspace, sens_coils, sparse_mask, lambd, alpha0, alpha1, iterations):
+    def tv_l2_reconstruction(self, img_kspace, sens_coils, sparse_mask, lambd, iterations):
         """
         @param f: the K observations of shape MxNxK
         @param alpha: tuple containing alpha1 and alpha2
@@ -208,12 +207,10 @@ class TGV_Reco():
        
         # initialize primal variables - numpy arrays shape (L*M*N, )
         u = np.zeros(L*M*N, dtype=complex)
-        v = np.zeros(3*L*M*N, dtype=complex)
 
         #@TODO change p,q to z1 z2
         # initialize dual variables
         p = np.zeros(3*L*M*N, dtype=complex)
-        q = np.zeros(9*L*M*N, dtype=complex)
         r = np.zeros(C*L*M*N, dtype=complex)
 
 
@@ -225,14 +222,12 @@ class TGV_Reco():
         tau_n_old = tau
 
         # array of array (still shape (xxxx, ))
-        u_vec = np.concatenate([u, v])
-        p_vec = np.concatenate([p, q])
 
         # list (not array!) which contains n arrays, each with length (xxxx, )
         
 
         # temp vector for DAH*r 
-        DAHr = np.zeros_like(u_vec, dtype=complex)
+        DAHr = np.zeros_like(u, dtype=complex)
 
         # @ is matrix multiplication of 2 variables
 
@@ -245,9 +240,8 @@ class TGV_Reco():
             DAHr[0:L*M*N] = np.ravel(self.DAH(r.reshape(C,L,M,N), sens_coils, sparse_mask))
             
             # prox for u not necessary
-            u_vec_old = u_vec
-            u_vec = u_vec - tau_n_old * (k.T @ p_vec + DAHr)
-            u = u_vec[0:L*M*N]
+            u_old = u
+            u = u - tau_n_old * (k.T @ p + DAHr)
             # v = u_vec[L*M*N:12*L*M*N]
             # u_vec = np.concatenate([u, v])
 
@@ -257,22 +251,20 @@ class TGV_Reco():
                 theta = tau_n/tau_n_old
                 sigma = beta * tau_n
 
-                u_bar = u_vec + theta * (u_vec - u_vec_old)
+                u_bar = u + theta * (u - u_old)
                 
-                y_old = np.concatenate([p_vec, r])
+                y_old = np.concatenate([p, r])
                 DAHr[0:L*M*N] = np.ravel(self.DAH(r.reshape(C,L,M,N), sens_coils, sparse_mask))
-                ky_old = k.T@p_vec + DAHr
+                ky_old = k.T@p + DAHr
 
-                p_temp = p_vec + sigma*k@(u_bar)
-                p = np.ravel(self.proj_ball(p_temp[0:3*L*M*N].reshape(3, L*M*N), alpha1))
-                q = np.ravel(self.proj_ball(p_temp[3*L*M*N:12*L*M*N].reshape(9, L*M*N), alpha0))
-                p_vec = np.concatenate([p, q])
+                p_temp = p + sigma*k@(u_bar)
+                p = np.ravel(self.proj_ball(p_temp[0:3*L*M*N].reshape(3, L*M*N)))
                 r_temp = r + np.ravel(sigma*(self.DA(u_bar[0:L*M*N].reshape(L,M,N), sens_coils, sparse_mask)-d))
                 r = np.ravel(self.prox_R(r_temp, sigma, lambd))
 
-                y_new = np.concatenate([p_vec, r])
+                y_new = np.concatenate([p, r])
                 DAHr[0:L*M*N] = np.ravel(self.DAH(r.reshape(C,L,M,N), sens_coils, sparse_mask))
-                ky_new = k.T@p_vec + DAHr
+                ky_new = k.T@p + DAHr
 
                 if (np.sqrt(beta)*tau_n*(np.linalg.norm(ky_new - ky_old))) <= (delta*(np.linalg.norm(y_new - y_old))):
                     break
