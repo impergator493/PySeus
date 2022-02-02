@@ -1,16 +1,17 @@
-from skimage.util.dtype import img_as_float
-from pyseus.core import PySeus
-from pyseus import load
-from pyseus import formats
-from skimage import data, color
-from skimage.restoration import denoise_tv_chambolle 
+#from skimage.util.dtype import img_as_float
+#from pyseus.core import PySeus
+#from pyseus import load
+#from pyseus import formats
+#from skimage import data, color
+#from skimage.restoration import denoise_tv_chambolle 
 import matplotlib.pyplot as plt
-import matplotlib.colors as col
+#import matplotlib.colors as col
 import scipy.io
 
 import numpy as np
 
-from pyseus.processing.tv_denoising import TV_Denoise
+from pyseus.processing.tv_denoising_old import TV_Denoise
+from pyseus.processing.tgv_denoising import TGV_Denoise
 
 
 # Full paths do not work some times, windows issue or something else?
@@ -53,6 +54,10 @@ print("---------")
 
 lambda_n = 8
 iter = 100
+
+b = TGV_Denoise()
+denoised_TGV = b.tgv2_denoising_gen(0,noisy,(10, 2, 1, 10), (1,1))
+
 
 # rather for saltn pepper noise
 a = TV_Denoise()
@@ -102,9 +107,9 @@ plt.imshow(denoised_L2, cmap=plt.cm.gray)
 plt.axis('off')
 plt.title('TV denoising L2', fontsize=20)
 plt.subplot(235)
-plt.imshow(denoised_huberROF, cmap=plt.cm.gray)
+plt.imshow(denoised_TGV, cmap=plt.cm.gray)
 plt.axis('off')
-plt.title('TV denoising HuberROF', fontsize=20)
+plt.title('TGV denoising ', fontsize=20)
 
 plt.subplots_adjust(wspace=0.02, hspace=0.1, top=0.9, bottom=0, left=0,
                     right=1)

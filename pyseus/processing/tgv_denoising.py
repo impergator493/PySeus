@@ -102,12 +102,16 @@ class TGV_Denoise():
         @return: projection result either 2xMN or 4xMN
         """
         norm = np.linalg.norm(Y, axis=0)
-        projection = Y / np.maximum(1, norm/alpha)
+        projection = Y / np.maximum(alpha, norm)
     
         return projection
 
 
-    def tgv2_denoising_gen(self, dataset_type, dataset_noisy, params):
+    def tgv2_denoising_gen(self, dataset_type, dataset_noisy, params, spac):
+
+
+        self.h_inv = spac[0]
+        self.hz_inv = spac[1]
 
         # prepare artifical 3D dataset(1,M,N) for 2D image (M,N), because to be universal applicable at least one entry
         # in 3rd dimension is expected  
@@ -125,7 +129,6 @@ class TGV_Denoise():
             
             # set z gradient spaces to 1/0 = infinity, so that no gradient is z direction is calculated
             # therefor every 2D picture is denoised individually
-            self.hz_inv = 0
             
             dataset_denoised = self.tgv2_denoising(dataset_noisy, *params)
 
@@ -136,7 +139,6 @@ class TGV_Denoise():
             # keep dataset just as it is, if its allready 3D -> dataset_noisy = dataset_noisy
 
             # set inverted z spacing to any number different then 0 for a 3D denoising
-            self.hz_inv = 1.0
 
             dataset_denoised = self.tgv2_denoising(dataset_noisy, *params)
 
@@ -154,7 +156,6 @@ class TGV_Denoise():
         @param maxit: maximum number of iterations
         @return: tuple of u with shape MxN and v with shape 2xMxN
         """
-
         # star argument to take really the value of the variable as argument
         # if 2dim noisy data make it a 3D array, if 3D just let it be
         
@@ -206,7 +207,6 @@ class TGV_Denoise():
             p_vec = np.concatenate([p, q])
 
         u = u.reshape(L,M,N)
-           
         return u
 
 

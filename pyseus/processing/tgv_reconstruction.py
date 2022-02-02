@@ -21,6 +21,7 @@ class TGV_Reco():
          # Lipschitz constant of K, according to papers ok, aber beim probieren ist es eigentlich zu klein.
         #self.lip_inv = np.sqrt((2*(1/self.h_inv)**2)/(16+(1/self.h_inv)**2+np.sqrt(32*(1/self.h_inv)**2+(1/self.h_inv)**4)))
         self.lip_inv = np.sqrt(1/64)
+        #self.lip_inv = np.sqrt(1/12)
 
         # dimension for which the fft and ifft should be calculated, standard is 2D
         self.fft_dim = (-2,-1)
@@ -107,7 +108,7 @@ class TGV_Reco():
         @return: projection result either 2xMN or 4xMN
         """
         norm = np.linalg.norm(Z, axis=0)
-        projection = Z / np.maximum(1, norm/alpha)
+        projection = Z / np.maximum(alpha, norm)
     
         return projection
 
@@ -122,7 +123,7 @@ class TGV_Reco():
         sens_c - coil sensitivities 
         """
         return sparse_mask * np.fft.fftn((sens_c * u), axes=self.fft_dim)
-        
+
 
         
     #@TODO temporaril absolute value of coils sensitivities just for trying
@@ -143,11 +144,14 @@ class TGV_Reco():
     def prox_R(self, R, sigma, lambd):
         
         
-        return (R*lambd)/(lambd+ sigma) # this is from knoll stollberger tgv paper
+        return (R*lambd)/(lambd + sigma) # this is from knoll stollberger tgv paper
 
    # if its a big dataset, a lot of RAM is needed because all the raw data to process will be 
     # stored in the RAM
-    def tgv2_reconstruction_gen(self, dataset_type, data_raw, data_coils, sparse_mask, params):
+    def tgv2_reconstruction_gen(self, dataset_type, data_raw, data_coils, sparse_mask, params, spac):
+
+        self.h_inv = spac[0]
+        self.hz_inv = spac[1]
 
         if dataset_type == ProcessSelDataType.SLICE_2D:
             # Because of Coil data, correct slice has to be select with L=1 already when method is called
@@ -159,7 +163,6 @@ class TGV_Reco():
 
         elif dataset_type == ProcessSelDataType.WHOLE_SCAN_2D:
             
-            self.hz_inv = 0
             self.fft_dim = (-2,-1)
               
             dataset_denoised = self.tgv2_reconstruction(data_raw, data_coils, sparse_mask, *params)
@@ -168,8 +171,7 @@ class TGV_Reco():
 
         elif dataset_type == ProcessSelDataType.WHOLE_SCAN_3D:
             
-            self.hz_inv = 1.0
-            self.fft_dim = (-2,-1)
+            self.fft_dim = (-3,-2,-1)
             
             dataset_denoised = self.tgv2_reconstruction(data_raw, data_coils, sparse_mask, *params)
 
@@ -192,7 +194,7 @@ class TGV_Reco():
         beta = 1
         theta = 1
         mu = 0.5
-        delta = 1
+        delta = 0.5
 
         # d is the variable which contains all the k-space data for the sample for all coils
         # and has dimension Nc*Nz*Ny*Nx

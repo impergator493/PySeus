@@ -144,7 +144,10 @@ class TV_Reco():
 
    # if its a big dataset, a lot of RAM is needed because all the raw data to process will be 
     # stored in the RAM
-    def tv_reconstruction_gen(self, func_reco, dataset_type, data_raw, data_coils, sparse_mask, params):
+    def tv_reconstruction_gen(self, func_reco, dataset_type, data_raw, data_coils, sparse_mask, params, spac):
+
+        self.h_inv = spac[0]
+        self.hz_inv = spac[1]
 
         if dataset_type == ProcessSelDataType.SLICE_2D:
             # Because of Coil data, correct slice has to be select with L=1 already when method is called
@@ -156,7 +159,6 @@ class TV_Reco():
 
         elif dataset_type == ProcessSelDataType.WHOLE_SCAN_2D:
             
-            self.hz_inv = 0
             self.fft_dim = (-2,-1)
               
             dataset_denoised = func_reco(data_raw, data_coils, sparse_mask, *params)
@@ -165,8 +167,7 @@ class TV_Reco():
 
         elif dataset_type == ProcessSelDataType.WHOLE_SCAN_3D:
             
-            self.hz_inv = 1.0
-            self.fft_dim = (-2,-1)
+            self.fft_dim = (-3,-2,-1)
             
             dataset_denoised = func_reco(data_raw, data_coils, sparse_mask, *params)
 
@@ -175,8 +176,6 @@ class TV_Reco():
         else:
             raise TypeError("Dataset must be either 2D or 3D and matching the correct dataset type")
     
-    def tikhonov_l2_reconstruction():
-        pass
 
     def tv_l2_reconstruction(self, img_kspace, sens_coils, sparse_mask, lambd, iterations):
         """

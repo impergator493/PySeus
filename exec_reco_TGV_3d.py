@@ -5,21 +5,22 @@ import numpy as np
 import matplotlib.pyplot as plt  
 import scipy.io
 
-f1 = h5py.File("..\\..\\03_Daten\\fourier_data_reconstruction\\prob01.h5")    
+# f1 = h5py.File("..\\..\\03_Daten\\fourier_data_reconstruction\\prob01.h5")
+f1 = h5py.File("..\\..\\03_Daten\\fourier_data_reconstruction\\VFA_test_cart.h5")      
 print('\n')
 print("Keys: ", list(f1.keys()))
 print("Attributes: ", dict(f1.attrs))
 # Inhalt der Attribute
 
 
-real_dat = f1['real_dat'][0,:,30:31,:,:]
-imag_dat = f1['imag_dat'][0,:,30:31,:,:]
+real_dat = f1['real_dat'][0,:,100:101,:,:]
+imag_dat = f1['imag_dat'][0,:,100:101,:,:]
 raw_data = real_dat + imag_dat*(1j)
-coils = f1['Coils'][:,30:31,:,:]
+coils = f1['Coils'][:,100:101,:,:]
 #coils = np.ones_like(raw_data)
 
-np.save('data_3D', raw_data)
-np.save('coil_3D', coils)
+#np.save('data_3D', raw_data)
+#np.save('coil_3D', coils)
 
 
 data_size = raw_data.shape[-3:]
@@ -97,7 +98,7 @@ sp_mask_bin[R<0.15] = 1
 
 obj = TGV_Reco()
 
-denoised_reco = obj.tgv2_reconstruction_gen(0,raw_data, coils, sp_mask_bin2, 10, 2, 1,10)
+denoised_reco = obj.tgv2_reconstruction_gen(0,raw_data, coils, sp_mask_bin2, (10, 2, 1,10), (1.0, 1.0))
 
 #np.save('denoise_u_veclist', denoised_reco)
 

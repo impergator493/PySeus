@@ -30,7 +30,6 @@ class PySeus():  # pylint: disable=R0902
 
     
     def __init__(self, gui=True):
-        # set gui = false for testing
         
         self.qt_app = None
         """The QApplication instance for interaction with the Qt framework."""

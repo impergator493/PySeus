@@ -1,17 +1,18 @@
 from PySide2.QtWidgets import QBoxLayout, QButtonGroup, QCheckBox, QDesktopWidget, QDialog, QDialogButtonBox, QFormLayout, QGroupBox, QLayout, QLineEdit, QMainWindow, QAction, QLabel, QFileDialog, \
-                              QFrame, QPushButton, QRadioButton, QScrollArea, QSizePolicy, QVBoxLayout, QHBoxLayout, QWidget
+                              QFrame, QPushButton, QRadioButton, QScrollArea, QSizePolicy, QVBoxLayout, QHBoxLayout, QWidget, QGridLayout
 
 from pyseus.processing.tv_reconstruction import TV_Reco
 
 
 from ..settings import ProcessType, ProcessSelDataType, ProcessRegType, DataType
 
-from pyseus.processing.threading_process import ProcessThread
+from pyseus.processing.threading_process_old import ProcessThread
+from pyseus.processing.thread_worker import Worker
 from pyseus.processing.tv_denoising import TV_Denoise
 from pyseus.processing.tgv_denoising import TGV_Denoise
 from pyseus.processing.tgv_reconstruction import TGV_Reco
 from pyseus.modes.grayscale import Grayscale
-from PySide2.QtCore import Qt
+from PySide2.QtCore import Qt, QThread
 import numpy
 import scipy
 import gc
@@ -29,13 +30,11 @@ class ProcessDialog(QDialog):
         self.window_processed = ProcessedWindow(app, self.proc_type)
         
 
-        vlayout_sel_par = QVBoxLayout()
         vlayout_sel = QVBoxLayout()
         vlayout_type = QVBoxLayout()
         grp_box_sel = QGroupBox("Data Selection")
         grp_box_type = QGroupBox("Model Type")
 
-        hlayout = QHBoxLayout()
         # Take "Denoising" or "Reconstruction" as title straight from the ENUM
         self.setWindowTitle(str.capitalize(self.proc_type.name))
         
@@ -43,7 +42,10 @@ class ProcessDialog(QDialog):
         self.grp_data_sel = QButtonGroup()
         self.btn_curr_slice = QRadioButton("Current Slice")
         self.btn_curr_slice.setChecked(True)
-        self.btn_all_slices_2D = QRadioButton("2D - Whole Scan")
+        if self.proc_type == ProcessType.DENOISING:
+            self.btn_all_slices_2D = QRadioButton("Whole Scan")
+        else:
+            self.btn_all_slices_2D = QRadioButton("2D - Whole Scan")
         self.btn_all_slices_3D = QRadioButton("3D - Whole Scan")
         self.grp_data_sel.addButton(self.btn_curr_slice,ProcessSelDataType.SLICE_2D)
         self.grp_data_sel.addButton(self.btn_all_slices_2D,ProcessSelDataType.WHOLE_SCAN_2D)
@@ -55,37 +57,54 @@ class ProcessDialog(QDialog):
         # subgroup of radio buttons to dataset selection
         self.grp_tv_type = QButtonGroup()
         self.btn_tv_L1 = QRadioButton("TV-L1")
-        self.btn_tv_L1.setChecked(True)
         self.btn_hub_L2 = QRadioButton("Huber-L2")
         self.btn_tv_L2 = QRadioButton("TV-L2")
+        self.btn_tv_L2.setChecked(True)
         self.btn_tgv2_L2 = QRadioButton("TGV2-L2")
         self.grp_tv_type.addButton(self.btn_tv_L1, int(ProcessRegType.TV_L1))
         self.grp_tv_type.addButton(self.btn_hub_L2, int(ProcessRegType.HUB_L2))
         self.grp_tv_type.addButton(self.btn_tv_L2, int(ProcessRegType.TV_L2))
         self.grp_tv_type.addButton(self.btn_tgv2_L2, int(ProcessRegType.TGV2_L2))
         
+        vlayout_sel.addWidget(self.btn_curr_slice)
+        vlayout_sel.addWidget(self.btn_all_slices_2D)
+        if self.proc_type == ProcessType.RECONSTRUCTION:
+            vlayout_sel.addWidget(self.btn_all_slices_3D)
+            vlayout_sel.addWidget(self.chbx_coil)
+            vlayout_sel.addWidget(self.chbx_spmask)
+        grp_box_sel.setLayout(vlayout_sel)
+
+        if self.proc_type == ProcessType.DENOISING:
+            vlayout_type.addWidget(self.btn_tv_L1)
+            vlayout_type.addWidget(self.btn_hub_L2)
+        vlayout_type.addWidget(self.btn_tv_L2)
+        vlayout_type.addWidget(self.btn_tgv2_L2)
+        grp_box_type.setLayout(vlayout_type)
+
         # form layout for parameter input for processing algorithm
         
         vlayout_par = QVBoxLayout()
+        vlayout_spac = QVBoxLayout()
         grp_box_par = QGroupBox("Parameters")
+        grp_box_spac = QGroupBox("Inverted Spacing")
 
-        v_form1 = QFormLayout()
+        v_form_par = QFormLayout()
         self.qline_lambd = QLineEdit()
         self.qline_lambd.setText("30")
-        v_form1.addRow("Lambda",self.qline_lambd)
+        v_form_par.addRow("Lambda",self.qline_lambd)
         
         self.qline_iter = QLineEdit()
         self.qline_iter.setText("100")
-        v_form1.addRow("Iterations",self.qline_iter)
+        v_form_par.addRow("Iterations",self.qline_iter)
 
-        v_form1.addRow(" ", None)
+        v_form_par.addRow(" ", None)
         self.qline_alpha = QLineEdit()
         self.qline_alpha.setText("0.03")
         size_pol = self.qline_alpha.sizePolicy()
         size_pol.setRetainSizeWhenHidden(True)
         self.qline_alpha.setSizePolicy(size_pol)
         self.qline_alpha.hide()
-        v_form1.addRow("Alpha",self.qline_alpha)
+        v_form_par.addRow("Alpha",self.qline_alpha)
 
         self.qline_alpha0 = QLineEdit()
         self.qline_alpha0.setText("2")
@@ -93,7 +112,7 @@ class ProcessDialog(QDialog):
         size_pol0.setRetainSizeWhenHidden(True)
         self.qline_alpha0.setSizePolicy(size_pol0)
         self.qline_alpha0.hide()
-        v_form1.addRow("Alpha0",self.qline_alpha0)
+        v_form_par.addRow("Alpha0",self.qline_alpha0)
 
         self.qline_alpha1 = QLineEdit()
         self.qline_alpha1.setText("1")
@@ -101,7 +120,7 @@ class ProcessDialog(QDialog):
         size_pol1.setRetainSizeWhenHidden(True)
         self.qline_alpha1.setSizePolicy(size_pol1)
         self.qline_alpha1.hide()
-        v_form1.addRow("Alpha1",self.qline_alpha1)
+        v_form_par.addRow("Alpha1",self.qline_alpha1)
         
         self.btn_tv_L1.clicked.connect(lambda: self.qline_alpha.hide())
         self.btn_hub_L2.clicked.connect(lambda: self.qline_alpha.show())
@@ -118,40 +137,43 @@ class ProcessDialog(QDialog):
         self.btn_tv_L2.clicked.connect(lambda: self.qline_alpha1.hide())
         self.btn_tgv2_L2.clicked.connect(lambda: self.qline_alpha1.show())
         
-        
+        v_form_spac = QFormLayout()
+        self.qline_hiso_inv = QLineEdit()
+        self.qline_hiso_inv.setText("1.0")
+        v_form_spac.addRow("h_iso inverted",self.qline_hiso_inv)
+
+        self.qline_hz_inv = QLineEdit()
+        self.qline_hz_inv.setText("1.0")
+        v_form_spac.addRow("h_z inverted",self.qline_hz_inv)
+
+
         # function without brackets just connects the function, but does not call it
         self.box_btns = QDialogButtonBox()
         self.box_btns.setStandardButtons(QDialogButtonBox.Cancel | QDialogButtonBox.Ok)
         self.box_btns.accepted.connect(self.signal_ok)
         self.box_btns.rejected.connect(lambda:self.close())
-   
 
         # organize items on GUI
-        vlayout_sel.addWidget(self.btn_curr_slice)
-        vlayout_sel.addWidget(self.btn_all_slices_2D)
-        vlayout_sel.addWidget(self.btn_all_slices_3D)
-        if self.proc_type == ProcessType.RECONSTRUCTION:
-            vlayout_sel.addWidget(self.chbx_coil)
-            vlayout_sel.addWidget(self.chbx_spmask)
-        grp_box_sel.setLayout(vlayout_sel)
-
-        vlayout_type.addWidget(self.btn_tv_L1)
-        vlayout_type.addWidget(self.btn_hub_L2)
-        vlayout_type.addWidget(self.btn_tv_L2)
-        vlayout_type.addWidget(self.btn_tgv2_L2)
-        grp_box_type.setLayout(vlayout_type)
-
-        vlayout_sel_par.addWidget(grp_box_sel)
-        vlayout_sel_par.addWidget(grp_box_type)
-
-        vlayout_par.addLayout(v_form1)
-        vlayout_par.addWidget(self.box_btns)
+        
+        vlayout_par.addLayout(v_form_par)
         grp_box_par.setLayout(vlayout_par)
 
-        hlayout.addLayout(vlayout_sel_par)
-        hlayout.addWidget(grp_box_par)
+        vlayout_spac.addLayout(v_form_spac)
+        grp_box_spac.setLayout(vlayout_spac)
+
+        gridlayout = QGridLayout()
+        gridlayout.addWidget(grp_box_sel,0,0)
+        gridlayout.addWidget(grp_box_type,1,0)
+        gridlayout.addWidget(grp_box_par,0,1)
+        gridlayout.addWidget(grp_box_spac,1,1)
+
+
+        vlayout_all = QVBoxLayout()
+        vlayout_all.addLayout(gridlayout)
+        vlayout_all.addWidget(self.box_btns)
+
         
-        self.setLayout(hlayout)
+        self.setLayout(vlayout_all)
         #dialog.setStyleSheet('color: white')
         self.setStyleSheet("QLineEdit"
                                     "{"
@@ -185,7 +207,9 @@ class ProcessDialog(QDialog):
         lambd = float(self.qline_lambd.text())
         iterations = int(self.qline_iter.text())
 
-        
+        h_iso_inv = float(self.qline_hiso_inv.text())
+        h_z_inv = float(self.qline_hz_inv.text())
+
         #according to definition in init method, 1 = 2D, 2 = 2D - whole dataset, 3 = 3D - whole Dataset
         dataset_type = ProcessSelDataType(self.grp_data_sel.checkedId())
         tv_type = ProcessRegType(self.grp_tv_type.checkedId())
@@ -193,9 +217,7 @@ class ProcessDialog(QDialog):
         use_coilmap = self.chbx_coil.isChecked()
         use_spmask = self.chbx_spmask.isChecked()
 
-        self.window_processed.start_calculation(alpha, alpha0, alpha1, lambd, iterations,dataset_type,tv_type, use_coilmap, use_spmask)
-
-
+        self.window_processed.start_calculation(alpha, alpha0, alpha1, lambd, iterations, h_iso_inv, h_z_inv, dataset_type,tv_type, use_coilmap, use_spmask)
 
 
 class ProcessedWindow(QDialog):
@@ -222,13 +244,22 @@ class ProcessedWindow(QDialog):
         self.layout().addWidget(self.view)
         self.layout().addWidget(self.box_btns_ok)
 
+        self.thread = None
+        self.worker = None
 
         self.mode = Grayscale()
 
 
     def calculation_callback(self,data_obj):
-        
-        
+               
+        self.thread.requestInterruption()
+        self.thread.quit()
+        self.thread.wait()
+
+        del self.thread
+        del self.worker
+
+
         self.processed = data_obj
 
         #TODO Remove fixed slice id
@@ -244,7 +275,7 @@ class ProcessedWindow(QDialog):
        
     
 
-    def start_calculation(self,alpha, alpha0, alpha1, lambd,iterations,dataset_type, tv_type, use_coilmap, use_spmask):
+    def start_calculation(self,alpha, alpha0, alpha1, lambd,iterations, hiso_inv, hz_inv, dataset_type, tv_type, use_coilmap, use_spmask):
 
         self.dataset_type = dataset_type
 
@@ -254,10 +285,11 @@ class ProcessedWindow(QDialog):
                 dataset_noisy = self.app.dataset.get_pixeldata(-1)
             elif self.dataset_type == ProcessSelDataType.SLICE_2D:
                 dataset_noisy = self.app.dataset.get_pixeldata(self.app.get_slice_id())
+                
 
             if tv_type == ProcessRegType.TV_L1:
                 tv_class = TV_Denoise()
-                tv_type_func = tv_class.tv_denoising_L1
+                tv_type_func =tv_class.tv_denoising_L1
                 params = (lambd, iterations)
             if tv_type == ProcessRegType.HUB_L2:
                 tv_class = TV_Denoise()
@@ -272,10 +304,19 @@ class ProcessedWindow(QDialog):
                 tv_class = TGV_Denoise()
                 tv_type_func = None
                 params = (lambd, alpha0, alpha1, iterations)
+            
+            spac = (hiso_inv, hz_inv)
 
-            thread_processed = ProcessThread(self, tv_class, tv_type_func, dataset_type, dataset_noisy, params)
-            thread_processed.output.connect(self.calculation_callback)
-            thread_processed.start()
+            self.thread = QThread()
+            self.worker = Worker(tv_class, tv_type_func, dataset_type, dataset_noisy, params, spac)
+            self.worker.moveToThread(self.thread)
+            self.thread.started.connect(self.worker.run)
+            self.worker.output.connect(self.calculation_callback)
+            self.thread.start()
+
+            # self.thread = ProcessThread(self, tv_class, tv_type_func, dataset_type, dataset_noisy, params, spac)
+            # self.thread.output.connect(self.calculation_callback)
+            # self.thread.start()
         
         elif self.proc_type == ProcessType.RECONSTRUCTION:
             
@@ -306,17 +347,10 @@ class ProcessedWindow(QDialog):
                 elif self.dataset_type == ProcessSelDataType.SLICE_2D:
                     data_coils = self.app.dataset.get_coil_data(slice_id)
 
-            #if tv_type == ProcessRegType.TV_L1:
-                #tv_class = TV()
-                #tv_type_func = tv_class.tv_denoising_L1
-                #params = (lambd, iterations)
-            #if tv_type == ProcessRegType.TV_ROF:
-                #tv_class = TV()
-                #tv_type_func = tv_class.tv_denoising_huberROF
-                #params = (lambd, iterations, alpha)
+            
             if tv_type == ProcessRegType.TV_L2:
                 tv_class = TV_Reco()
-                tv_type_func = tv_class.tv_l2_reconstruction
+                tv_type_func =tv_class.tv_l2_reconstruction
                 params = (lambd, iterations)
             if tv_type == ProcessRegType.TGV2_L2:
                 #tv_type_func not needed, just one possible case for tgv
@@ -324,13 +358,18 @@ class ProcessedWindow(QDialog):
                 tv_type_func = None
                 params = (lambd, alpha0, alpha1, iterations)
 
-                # zum probieren um debuggen zu können temporär:
-                #self.calculation_callback(tv_class.tgv2_reconstruction_gen(dataset_type, dataset_kspace, 
-                #                                                            data_coils, sparse_mask, *params))
+            spac = (hiso_inv, hz_inv)
 
-            thread_processed = ProcessThread(self, tv_class, tv_type_func, dataset_type, dataset_kspace, params, sparse_mask, data_coils)
-            thread_processed.output.connect(self.calculation_callback)
-            thread_processed.start()
+            self.thread = QThread()
+            self.worker = Worker(tv_class, tv_type_func, dataset_type, dataset_kspace, params, spac, sparse_mask, data_coils)
+            self.worker.moveToThread(self.thread)
+            self.thread.started.connect(self.worker.run)
+            self.worker.output.connect(self.calculation_callback)
+            self.thread.start()
+
+            # thread_processed = ProcessThread(self,tv_class, tv_type_func, dataset_type, dataset_kspace, params, spac, sparse_mask, data_coils)
+            # thread_processed.output.connect(self.calculation_callback)
+            # thread_processed.start()
 
             
 

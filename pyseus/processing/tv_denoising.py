@@ -1,285 +1,194 @@
-# TV-L1 implementation based on Matlab User method
-# from Convex optimization PD Chambolle Pock Paper
+# Assignment from Image Processing, taken from there
 
-# define as class methods, then there is no need for initializing
-# but predefined values must be defined in another way then
-
+import matplotlib.pyplot as plt
 import numpy as np
+import scipy
+import scipy.sparse as sp
 
 from ..settings import ProcessSelDataType
 
+# @TODO: womöglich als methode in TV klasse inkludieren?
+class TV_Denoise(): 
 
-
-class TV_Denoise():
 
     def __init__(self):
         
-        self.tau = 0.01
-
-        # inverted isotrop spacing x and y dim
-        self.h_inv = 1.0
-        # inverted spacing of z dim (slice)
-        self.hz_inv = 1.0
-
-        # according to chambolle pock TV denoising paper, invert h back for correct calculation according to original definition
-        self.L2 = 8.0/np.square(1/self.h_inv)
-
-        self.sigma = 1./(self.L2*self.tau)
-
         self.theta = 1.0
 
-        # remove later, when functions are implemented as classes, not neccessary anymore, remove later if it works
-        #self.i = None
-        #self.iterations = None
+        self.h_inv = 1.0
+        self.hz_inv = 1.0
+
+         # Lipschitz constant of K, according to knoll paper TGV reco and denoising, with iso spacing for x and y
+        self.lip_inv = np.sqrt((2*(1/self.h_inv)**2)/(16+(1/self.h_inv)**2+np.sqrt(32*(1/self.h_inv)**2+(1/self.h_inv)**4)))
+    
+
+    def _make_nabla(self,L, M, N):
+        row = np.arange(0, L * M * N)
+        dat = np.ones(L* M * N)
+        col = np.arange(0, M * N * L).reshape(L, M, N)
+        col_xp = np.concatenate([col[:, :, 1:], col[:, :, -1:]], axis = 2)
+        col_yp = np.concatenate([col[:, 1:, :], col[:, -1:, :]], axis = 1)
+        col_zp = np.concatenate([col[1:, :, :], col[-1:, :, :]], axis = 0)
+
+        # flatten vector contains all the indices for the positions where -1 and 1 should be placed to calculate
+        # gradient for every pixel in all 3 dimensions.
+
+        # for every pixel (pixel amount L*M*N) that should be calculated, a sparse vector (length L*M*N) is generated 
+        # which just contains the 1 and -1 on the 
+        # specific place and is 0 otherwhise. Thats why its a (L*M*N, L*M*N) matrix
+
+        nabla_x = (scipy.sparse.coo_matrix((dat, (row, col_xp.flatten())), shape=(L * M * N, L * M * N)) -
+                scipy.sparse.coo_matrix((dat, (row, col.flatten())), shape=(L * M * N, L * M * N)))*self.h_inv
+
+        nabla_y = (scipy.sparse.coo_matrix((dat, (row, col_yp.flatten())), shape=(L * M * N, L * M * N)) -
+                scipy.sparse.coo_matrix((dat, (row, col.flatten())), shape=(L * M * N, L * M * N)))*self.h_inv
+        
+        nabla_z = (scipy.sparse.coo_matrix((dat, (row, col_zp.flatten())), shape=(L * M * N, L * M * N)) -
+                scipy.sparse.coo_matrix((dat, (row, col.flatten())), shape=(L * M * N, L * M * N)))*self.hz_inv
 
 
-    def tv_denoising_gen(self, func_denoise, dataset_type, dataset_noisy, params):
-        """ General Denoising Method for all TV types, 2D and 3D """
+        nabla = scipy.sparse.vstack([nabla_x, nabla_y, nabla_z])
+
+        return nabla, nabla_x, nabla_y, nabla_z
 
 
-        # if 2D per slice is done, for-loop is needed, for repeating 2D calculation of 3D dataset
-        if dataset_type == ProcessSelDataType.WHOLE_SCAN_2D:
+    def prox_L1(self, u, u_0, tau, lambd):
+        
+             
+        
+        prox = (u - tau * lambd) * (u - u_0 > tau * lambd
+                ) + (u + tau * lambd) * (u - u_0 < -tau * lambd
+                ) + (u_0) * (abs(u - u_0) <= tau * lambd)
+
+        return prox
+
+
+    def make_K(self, L, M, N):
+        """
+        @param M:
+        @param N:
+        @return: the K operator as described in Equation (5)
+        """
+        nabla, nabla_x, nabla_y, nabla_z = self._make_nabla(L, M, N)
+
+        K = sp.bmat([[nabla_x], [nabla_y], [nabla_z]])
+        
+        return K
+
+
+    def proj_ball(self, Y):
+        """
+        Projection to a ball as described in Equation (6)
+        @param Y: either 2xMN or 4xMN
+        @param lamb: scalar hyperparameter lambda
+        @return: projection result either 2xMN or 4xMN
+        """
+        norm = np.linalg.norm(Y, axis=0)
+        projection = Y / np.maximum(1, norm)
+    
+        return projection
+
+
+    def tv_denoising_gen(self, func_denoise, dataset_type, dataset_noisy, params, spac):
+
+        print("TV_denoising called")
+
+        self.h_inv = spac[0]
+        self.hz_inv = spac[1]
+
+        # prepare artifical 3D dataset(1,M,N) for 2D image (M,N), because to be universal applicable at least one entry
+        # in 3rd dimension is expected  
+        if dataset_type == ProcessSelDataType.SLICE_2D:
+            dataset_noisy = dataset_noisy[np.newaxis,...]
+
+            # make return value 2D array again
+            dataset_denoised = func_denoise(dataset_noisy, *params)[0,:,:]
+
+            return dataset_denoised
+
+        elif dataset_type == ProcessSelDataType.WHOLE_SCAN_2D:
+            
+            # set z gradient spaces to 1/0 = infinity, so that no gradient is z direction is calculated
+            # therefor every 2D picture is denoised individually
+            
+            dataset_denoised = func_denoise(dataset_noisy, *params)
+
+            return dataset_denoised
+
+
+        elif dataset_type == ProcessSelDataType.WHOLE_SCAN_3D:
+            # keep dataset just as it is, if its allready 3D -> dataset_noisy = dataset_noisy
+
+            # set inverted z spacing to any number different then 0 for a 3D denoising
+
+            dataset_denoised = func_denoise(dataset_noisy, *params)
+
+            return dataset_denoised
+
+        else:
+            raise TypeError("Dataset must be either 2D or 3D and matching the correct dataset type")
+
+
+
+    def tv_denoising_L1(self,img_noisy, lambd, iterations):
+        """
+        @param f: the K observations of shape MxNxK
+        @param alpha: tuple containing alpha1 and alpha2
+        @param maxit: maximum number of iterations
+        @return: tuple of u with shape MxN and v with shape 2xMxN
+        """
+
+        # star argument to take really the value of the variable as argument
+        # if 2dim noisy data make it a 3D array, if 3D just let it be
+        
+        # inverted spacing is used so that h* = 0 is an infinite spacing
+
+        f = img_noisy.copy()
+
+        L, M, N = f.shape
+        img = img_noisy.reshape(L*M*N)
+
+        # make operators
+        k = self.make_K(L,M,N)
+
+        # initialize primal variables
+        u_vec = np.zeros(L*M*N)
+
+        # initialize dual variables
+        p_vec = np.zeros(3*L*M*N)
+
+        # primal and dual step size
+        tau = self.lip_inv
+        sigma = self.lip_inv
+
+        u_bar = img
+    
+
+        
+        # @ is matrix multiplication of 2 variables
+
+        for it in range(0, iterations):
+            # To calculate the data term projection you can use:
+            # prox_sum_l1(x, f, tau, Wis)
+            # where x is the parameter of the projection function i.e. u^(n+(1/2))
+            p_vec = p_vec + sigma*k@(u_bar)            
+            p_vec = np.ravel(self.proj_ball(p_vec[0:3*L*M*N].reshape(3, L*M*N)))
+            
+            u_old = u_vec
+
+            u_vec = u_vec - tau * k.T @ p_vec
+            u_vec = self.prox_L1(u_vec, img, tau, lambd)
+
+            u_bar = u_vec - self.theta * (u_vec - u_old)
+
            
-            dataset_denoised = np.zeros(dataset_noisy.shape)
-            slices = dataset_noisy.shape[0]
-
-            for index in range(0, slices):
-                    args = (dataset_noisy[index,:,:], *params)
-                    dataset_denoised[index,:,:] = func_denoise(*args)
-
-            return dataset_denoised
-
-        #  2D and 3D dataset is automatically correctly handled by methods according to dataset dimensions 
-        elif dataset_type == ProcessSelDataType.WHOLE_SCAN_3D or dataset_type == ProcessSelDataType.SLICE_2D:
             
-            args = (dataset_noisy, *params)
-            dataset_denoised = func_denoise(*args)
 
-            return dataset_denoised
-
-        else:
-            raise ValueError("Dataset must be either 2D or 3D")
+        u_bar = u_bar.reshape(L,M,N)
         
+        return u_bar
 
-            
-    def gradient_img(self, matrix):
-        
-        # 2 dim for x and y gradient values
-        grad = np.zeros(((matrix.ndim,) + matrix.shape))
-
-        grad[0,0:-1,:] = (matrix[1:,:] -matrix[0:-1,:])*self.h_inv
-        grad[1,:,0:-1] = (matrix[:,1:] -matrix[:,0:-1])*self.h_inv
-
-        return grad
-
-    def divergence_img(self, matrix_div):
-        
-        # parameter matrix is 2D normally, so 2D must be given to gradient function
-
-        div = np.zeros_like(matrix_div)
-
-        # Y
-        dim0_len = matrix_div.shape[1]
-        # X
-        dim1_len = matrix_div.shape[2]
-        
-        # according to other program, first row/column should be taken from old, and last from old also but negative
-        # the number specifies along which axis matrix should be concenated
-        div[0,:,:] = np.r_['0',matrix_div[0,0:-1,:], np.zeros((1,dim1_len))] -np.r_['0',np.zeros((1,dim1_len)), matrix_div[0,0:-1,:]]*self.h_inv
-        div[1,:,:] = np.r_['1',matrix_div[1,:,0:-1], np.zeros((dim0_len,1))] -np.r_['1',np.zeros((dim0_len,1)), matrix_div[1,:,0:-1]]*self.h_inv
-
-        return div[0] + div[1]
-
-    def gradient_img_3D(self, dataset):
-
-                    
-        grad = np.zeros(((dataset.ndim,) + dataset.shape))
-        # dim 0 should be z: z can have another spacing as x and y
-        grad[0,0:-1,:,:] = (dataset[1:,:,:] -dataset[0:-1,:,:])*self.hz_inv
-        grad[1,:,0:-1,:] = (dataset[:,1:,:] -dataset[:,0:-1,:])*self.h_inv
-        grad[2,:,:,0:-1] = (dataset[:,:,1:] -dataset[:,:,0:-1])*self.h_inv
-
-        return grad
-
-    def divergence_img_3D(self, matrix_div):
-        
-        div = np.zeros_like(matrix_div)
-
-        dim0_len = matrix_div.shape[1]
-        dim1_len = matrix_div.shape[2]
-        dim2_len = matrix_div.shape[3]
-        
-        # according to other program, first row/column should be taken from old, and last from old also but negative
-        div[0,:,:,:] = np.r_['0',matrix_div[0,0:-1,:,:], np.zeros((1,dim1_len,dim2_len))] -np.r_['0',np.zeros((1,dim1_len,dim2_len)), matrix_div[0,0:-1,:,:]]*self.hz_inv
-        div[1,:,:,:] = np.r_['1',matrix_div[1,:,0:-1,:], np.zeros((dim0_len,1,dim2_len))] -np.r_['1',np.zeros((dim0_len,1,dim2_len)), matrix_div[1,:,0:-1,:]]*self.h_inv
-        div[2,:,:,:] = np.r_['2',matrix_div[2,:,:,0:-1], np.zeros((dim0_len,dim1_len,1))] -np.r_['2',np.zeros((dim0_len,dim1_len,1)), matrix_div[2,:,:,0:-1]]*self.h_inv
-
-        return div[0] + div[1] + div[2]
-
-
-    def tv_denoising_L1(self,img, lambda_rat, iterations):
-        """ Denoising with TVfor regularization term and L1 on data term"""
-        # check dimensions, so that just 2D image is processed at once
-        # loop for multiple slices
-        # maybe for first try hand over 3D image but just select 2D slice?
-
-        #p_n+1
-        #u_n+1 = model_L2 e.g.
-
-        # automatic selection of correct gradient and divergence function
-        grad_func = None
-        div_func = None
-
-        if img.ndim == 2:
-            grad_func = self.gradient_img
-            div_func = self.divergence_img
-        elif img.ndim == 3: 
-            grad_func = self.gradient_img_3D
-            div_func = self.divergence_img_3D
-
-        
-        max_val = img.max()
-
-        # for negative values also normalize?
-        if max_val > 1.0:
-            x_0 = img/max_val
-        else:
-            x_0 = img
-
-
-        # first initialized for x_0, y_0, x_bar_0
-        y_n = grad_func(x_0)
-        x_n = x_0
-        x_bar_n = x_n
-
-        for i in range(iterations):
-
-            y_n_half = y_n + self.sigma*grad_func(x_bar_n)
-            y_n_half_norm = (y_n_half[0]**2 + y_n_half[1]**2)**0.5
-            y_n_half_norm[y_n_half_norm<1] = 1
-            y_n  = y_n_half/y_n_half_norm
-
-            x_old = x_n
-            x_n_half = x_n + self.tau*div_func(y_n)
-
-            x_n =   (x_n_half - self.tau * lambda_rat) * (x_n_half - x_0 > self.tau * lambda_rat
-                    ) + (x_n_half + self.tau * lambda_rat) * (x_n_half - x_0 < -self.tau * lambda_rat
-                    ) + (x_0) * (abs(x_n_half - x_0) <= self.tau * lambda_rat)
-
-                       
-            x_bar_n = x_n + self.theta*(x_n - x_old)
-
-
-        img_denoised = x_bar_n
-
-        return img_denoised
-
-
-    # Algorithm 3: according to the paper this should work with ALG3.
-    # Alg1, Alg2 not possible like with L1, L2?
-    def tv_denoising_huberROF(self,img, lambda_rat, iterations, alpha):
-        """ Denoising with Huber regularization and L2 on data term"""
-
-        # alpha = 0.05
-
-        grad_func = None
-        div_func = None
-
-        # automatic selection of correct gradient and divergence function
-        if img.ndim == 2:
-            grad_func = self.gradient_img
-            div_func = self.divergence_img
-        elif img.ndim == 3: 
-            grad_func = self.gradient_img_3D
-            div_func = self.divergence_img_3D
-
-        max_val = img.max()
-
-        # for negative values also normalize?
-        if max_val > 1.0:
-            x_0 = img/max_val
-        else:
-            x_0 = img
-
-
-        # first initialized for x_0, y_0, x_bar_0
-        y_n = grad_func(x_0)
-        x_n = x_0
-        x_bar_n = x_n
-
-        for i in range(iterations):
-
-
-            divisor = (1 + self.sigma * alpha)
-            y_n_half = (y_n + self.sigma*grad_func(x_bar_n))
-            y_n_half_norm = ((y_n_half[0]/divisor)**2 + (y_n_half[1]/divisor)**2)**0.5
-            y_n_half_norm[y_n_half_norm<1] = 1
-            y_n  = (y_n_half/divisor)/y_n_half_norm
-
-            x_old = x_n
-            x_n = ((x_n + self.tau*div_func(y_n)) + self.tau*lambda_rat*x_0) / (1 + self.tau * lambda_rat)
-            
-            x_bar_n = x_n + self.theta*(x_n - x_old)
-
-
-        img_denoised = x_bar_n
-
-        return img_denoised
-
-
-# L2 denoising
-# M: @TODO define as class method?
-    def tv_denoising_L2(self,img, lambda_rat, iterations):
-        """ Denoising with TV for regularization term and L2 on data term"""
-
-
-        # check dimensions, so that just 2D image is processed at once
-        # loop for multiple slices
-        # maybe for first try hand over 3D image but just select 2D slice?
-
-        #p_n+1
-        #u_n+1 = model_L2 e.g.
-        
-        grad_func = None
-        div_func = None
-
-        # automatic selection of correct gradient and divergence function
-        if img.ndim == 2:
-            grad_func = self.gradient_img
-            div_func = self.divergence_img
-        elif img.ndim == 3: 
-            grad_func = self.gradient_img_3D
-            div_func = self.divergence_img_3D
-        
-        max_val = img.max()
-
-        # for negative values also normalize?
-        # TODO add offset to negative and scale afterwards
-        if max_val > 1.0:
-            x_0 = img/max_val
-        else:
-            x_0 = img
-
-
-        # first initialized for x_0, y_0, x_bar_0
-        y_n = grad_func(x_0)
-        x_n = x_0
-        x_bar_n = x_n
-
-        for i in range(iterations):
-
-
-            y_n_half = y_n + self.sigma*grad_func(x_bar_n)
-            y_n_half_norm = (y_n_half[0]**2 + y_n_half[1]**2)**0.5
-            y_n_half_norm[y_n_half_norm<1] = 1
-            y_n  = y_n_half/y_n_half_norm
-
-            x_old = x_n
-            x_n = ((x_n - self.tau*(-div_func(y_n))) + self.tau*lambda_rat*x_0) / (1 + self.tau * lambda_rat)
-            
-            x_bar_n = x_n + self.theta*(x_n - x_old)
-
-
-        img_denoised = x_bar_n
-
-        return img_denoised
+    def tv_denoising_huberROF(self,img_noisy, lambd, iterations):
+        pass
+    def tv_denoising_L2(self,img_noisy, lambd, iterations):
+        pass
