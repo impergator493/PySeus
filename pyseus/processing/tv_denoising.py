@@ -91,8 +91,6 @@ class TV_Denoise():
 
     def tv_denoising_gen(self, func_denoise, dataset_type, dataset_noisy, params, spac):
 
-        print("TV_denoising called")
-
         self.h_inv = spac[0]
         self.hz_inv = spac[1]
 

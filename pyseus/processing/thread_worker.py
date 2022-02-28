@@ -23,14 +23,12 @@ class Worker(QObject):
         self.spac = spac
         self.sp_mask = sp_mask
         self.coil_data = coil_data
-        print("Worker Init")
         
     
     
     # cannot pass arguments to run, but to the constructor of the class 
     def run(self):
         # *args: Passing a Function Using with an arbitrary number of positional argument
-        print("Run in Worker started")
         # denoising
         if isinstance(self.tv_class,TV_Denoise):
             self.data_processed = self.tv_class.tv_denoising_gen(self.tv_function, self.dataset_type, self.dataset, self.params, self.spac)

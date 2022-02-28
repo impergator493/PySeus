@@ -251,6 +251,7 @@ class ProcessedWindow(QDialog):
 
 
     def calculation_callback(self,data_obj):
+        
                
         self.thread.requestInterruption()
         self.thread.quit()
@@ -258,6 +259,7 @@ class ProcessedWindow(QDialog):
 
         del self.thread
         del self.worker
+        self.thread = None
 
 
         self.processed = data_obj
@@ -307,12 +309,13 @@ class ProcessedWindow(QDialog):
             
             spac = (hiso_inv, hz_inv)
 
-            self.thread = QThread()
-            self.worker = Worker(tv_class, tv_type_func, dataset_type, dataset_noisy, params, spac)
-            self.worker.moveToThread(self.thread)
-            self.thread.started.connect(self.worker.run)
-            self.worker.output.connect(self.calculation_callback)
-            self.thread.start()
+            if self.thread == None:
+                self.thread = QThread()
+                self.worker = Worker(tv_class, tv_type_func, dataset_type, dataset_noisy, params, spac)
+                self.worker.moveToThread(self.thread)
+                self.thread.started.connect(self.worker.run)
+                self.worker.output.connect(self.calculation_callback)
+                self.thread.start()
 
             # self.thread = ProcessThread(self, tv_class, tv_type_func, dataset_type, dataset_noisy, params, spac)
             # self.thread.output.connect(self.calculation_callback)
@@ -360,12 +363,13 @@ class ProcessedWindow(QDialog):
 
             spac = (hiso_inv, hz_inv)
 
-            self.thread = QThread()
-            self.worker = Worker(tv_class, tv_type_func, dataset_type, dataset_kspace, params, spac, sparse_mask, data_coils)
-            self.worker.moveToThread(self.thread)
-            self.thread.started.connect(self.worker.run)
-            self.worker.output.connect(self.calculation_callback)
-            self.thread.start()
+            if self.thread == None:
+                self.thread = QThread()
+                self.worker = Worker(tv_class, tv_type_func, dataset_type, dataset_kspace, params, spac, sparse_mask, data_coils)
+                self.worker.moveToThread(self.thread)
+                self.thread.started.connect(self.worker.run)
+                self.worker.output.connect(self.calculation_callback)
+                self.thread.start()
 
             # thread_processed = ProcessThread(self,tv_class, tv_type_func, dataset_type, dataset_kspace, params, spac, sparse_mask, data_coils)
             # thread_processed.output.connect(self.calculation_callback)

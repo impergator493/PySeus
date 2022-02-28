@@ -7,6 +7,9 @@
 import matplotlib.pyplot as plt
 #import matplotlib.colors as col
 import scipy.io
+import cv2
+import numpy as np
+from skimage.util import random_noise
 
 import numpy as np
 
@@ -19,6 +22,7 @@ from pyseus.processing.tgv_denoising import TGV_Denoise
 # There is a difference between / and \ separator, for \ if there is a 0 after it, before the string there must be a r -> r'.\asdf..'
 
 #load('./tests/samples/sample.h5')
+
 
 
 
@@ -117,6 +121,6 @@ plt.subplots_adjust(wspace=0.02, hspace=0.1, top=0.9, bottom=0, left=0,
 #pic_directory = "D:\Mario\Studium\Studieren\Masterarbeit\\03_Daten"
 #plt.savefig(pic_directory + "\denoise_tv_L2_iter=" + str(iter) + "_lambda=" + str(lambda_n) +".png" )
 
-plt.get_current_fig_manager().window.showMaximized()
+#plt.get_current_fig_manager().window.showMaximized()
 plt.show()
 
