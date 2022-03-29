@@ -284,24 +284,27 @@ class PySeus():  # pylint: disable=R0902
         """Save processed data in Dataset after confirmation in ProcessDialog."""
 
         if self.data_type == DataType.IMAGE:
-            #TODO: that should be changed, thats just for temporary fitting data into a dataset which similar to the processed data
-            # if a processed 2D image is put back in a 3D dataset, bc all the 3D data has the same display window with values for black and white
-            # use this case just for denoising?
-            if dataset.ndim == 2:
-                slice_id = self.slice
+            # #TODO: that should be changed, thats just for temporary fitting data into a dataset which similar to the processed data
+            # # if a processed 2D image is put back in a 3D dataset, bc all the 3D data has the same display window with values for black and white
+            # # use this case just for denoising?
+            # if dataset.ndim == 2:
+            #     slice_id = self.slice
 
-                old_min, old_max = self.dataset.get_minmax_pixeldata(slice_id)
-                dataset -= (numpy.min(dataset) - old_min)
-                dataset *= (old_max / numpy.max(dataset))
-                self.dataset.set_pixeldata(dataset, slice_id)
-            # for 3D data, the window just needs to be setup for the new values.
-            elif dataset.ndim == 3:
-                slice_id = -1
-                self.dataset.set_pixeldata(dataset, slice_id)
-                self._set_slice(self.dataset.slice_count() // 2)
-                self.mode.setup_window(self.dataset.get_pixeldata())
-            else:
-                return
+            #     old_min, old_max = self.dataset.get_minmax_pixeldata(slice_id)
+            #     dataset -= (numpy.min(dataset) - old_min)
+            #     dataset *= (old_max / numpy.max(dataset))
+            #     self.dataset.set_pixeldata(dataset, slice_id)
+            # # for 3D data, the window just needs to be setup for the new values.
+            # elif dataset.ndim == 3:
+            #     slice_id = -1
+            #     self.dataset.set_pixeldata(dataset, slice_id)
+            #     self._set_slice(self.dataset.slice_count() // 2)
+            #     self.mode.setup_window(self.dataset.get_pixeldata())
+            # else:
+            #     return
+
+            self.load_data(dataset, DataType.IMAGE)
+
 
         elif self.data_type == DataType.KSPACE:
             

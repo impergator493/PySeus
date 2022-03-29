@@ -49,6 +49,21 @@ class TGV_Denoise():
 
         return nabla, nabla_x, nabla_y, nabla_z
 
+    def make_K(self, L, M, N):
+        """
+        @param M:
+        @param N:
+        @return: the K operator as described in Equation (5)
+        """
+        nabla, nabla_x, nabla_y, nabla_z = self._make_nabla(L, M, N)
+        neg_I = sp.identity(L*M*N) * -1
+
+        K = sp.bmat([[nabla_x, neg_I, None, None], [nabla_y, None, neg_I, None], [nabla_z, None, None, neg_I], \
+            [None, nabla_x, None, None], [None, nabla_y, None, None], [None, nabla_z, None, None], \
+            [None, None, nabla_x, None], [None, None, nabla_y, None], [None, None, nabla_z, None],
+            [None, None, None, nabla_x], [None, None, None, nabla_y], [None, None, None, nabla_z]])
+
+        return K
 
     def prox_G(self, u, f, tau, lambd):
         """
@@ -75,24 +90,6 @@ class TGV_Denoise():
         prox = (f*tau*lambd + u)/(1 + tau*lambd)
 
         return prox
-
-
-    def make_K(self, L, M, N):
-        """
-        @param M:
-        @param N:
-        @return: the K operator as described in Equation (5)
-        """
-        nabla, nabla_x, nabla_y, nabla_z = self._make_nabla(L, M, N)
-        neg_I = sp.identity(L*M*N) * -1
-
-        K = sp.bmat([[nabla_x, neg_I, None, None], [nabla_y, None, neg_I, None], [nabla_z, None, None, neg_I], \
-            [None, nabla_x, None, None], [None, nabla_y, None, None], [None, nabla_z, None, None], \
-            [None, None, nabla_x, None], [None, None, nabla_y, None], [None, None, nabla_z, None],
-            [None, None, None, nabla_x], [None, None, None, nabla_y], [None, None, None, nabla_z]])
-
-        return K
-
 
     def proj_ball(self, Y, alpha):
         """
@@ -161,15 +158,13 @@ class TGV_Denoise():
         
         # inverted spacing is used so that h* = 0 is an infinite spacing
 
-        f = img_noisy.copy()
+        f = img_noisy
 
         L, M, N = f.shape
         img = img_noisy.reshape(L*M*N)
 
         # make operators
         k = self.make_K(L,M,N)
-
-       
 
         # initialize primal variables
         u = np.zeros(L*M*N)
@@ -183,8 +178,8 @@ class TGV_Denoise():
         tau = self.lip_inv
         sigma = self.lip_inv
 
-        u_vec = np.concatenate([u, v])
-        p_vec = np.concatenate([p, q])
+        x_vec = np.concatenate([u, v])
+        y_vec = np.concatenate([p, q])
 
         
         # @ is matrix multiplication of 2 variables
@@ -193,18 +188,18 @@ class TGV_Denoise():
             # To calculate the data term projection you can use:
             # prox_sum_l1(x, f, tau, Wis)
             # where x is the parameter of the projection function i.e. u^(n+(1/2))
-            u_vec_old = u_vec.copy()
-            u_vec = u_vec - tau * k.T @ p_vec
-            u = self.prox_G(u_vec[0:L*M*N], img, tau, lambd)
-            v = u_vec[L*M*N:12*L*M*N]
-            u_vec = np.concatenate([u, v])
+            u_vec_old = x_vec.copy()
+            x_vec = x_vec - tau * k.T @ y_vec
+            u = self.prox_G(x_vec[0:L*M*N], img, tau, lambd)
+            v = x_vec[L*M*N:12*L*M*N]
+            x_vec = np.concatenate([u, v])
 
-            u_bar = 2*u_vec - u_vec_old
+            u_bar = 2*x_vec - u_vec_old
 
-            p_temp = p_vec + sigma*k@(u_bar)
+            p_temp = y_vec + sigma*k@(u_bar)
             p = np.ravel(self.proj_ball(p_temp[0:3*L*M*N].reshape(3, L*M*N), alpha1))
             q = np.ravel(self.proj_ball(p_temp[3*L*M*N:12*L*M*N].reshape(9, L*M*N), alpha0))
-            p_vec = np.concatenate([p, q])
+            y_vec = np.concatenate([p, q])
 
         u = u.reshape(L,M,N)
         return u

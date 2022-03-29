@@ -12,6 +12,12 @@ from pyseus.settings import DataType
 # There is a difference between / and \ separator, for \ if there is a 0 after it,
 # before the string there must be a r -> r'.\asdf..'
 
-load('../../03_Daten/fourier_data_reconstruction/prob01.h5', DataType.KSPACE)
+#load('../../03_Daten/fourier_data_reconstruction/prob01.h5', DataType.KSPACE)
+#load(r'D:\Mario\Studium\Studieren\Masterarbeit\03_Daten\Noise_generation\Mario_Master\VFA_test_cart_noise005_alpha9_fft.h5', DataType.KSPACE)
+#load(r'D:\Mario\Studium\Studieren\Masterarbeit\03_Daten\Noise_generation\Mario_Master\VFA_test_cart.h5', DataType.KSPACE)
 
+load()
+
+#load(r'D:\Mario\Studium\Studieren\Masterarbeit\03_Daten\Noise_generation\Mario_Master\VFA_test_cart_noise01_alpha9_image_complex.h5', DataType.IMAGE)
 #load('./tests/samples/sample.h5', DataType.IMAGE)
+

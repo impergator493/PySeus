@@ -14,8 +14,7 @@ from pyseus.processing.tgv_reconstruction import TGV_Reco
 from pyseus.modes.grayscale import Grayscale
 from PySide2.QtCore import Qt, QThread
 import numpy
-import scipy
-import gc
+
 
 
 
@@ -381,10 +380,6 @@ class ProcessedWindow(QDialog):
         # should be done with .start() method, not with run
         # otherwhise threading wont be activated
         
-        
-        
-     
-
     def display_image(self, image):
         
 

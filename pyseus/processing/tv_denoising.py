@@ -13,8 +13,6 @@ class TV_Denoise():
 
     def __init__(self):
         
-        self.theta = 1.0
-
         self.h_inv = 1.0
         self.hz_inv = 1.0
 
@@ -51,18 +49,6 @@ class TV_Denoise():
 
         return nabla, nabla_x, nabla_y, nabla_z
 
-
-    def prox_L1(self, u, u_0, tau, lambd):
-        
-             
-        
-        prox = (u - tau * lambd) * (u - u_0 > tau * lambd
-                ) + (u + tau * lambd) * (u - u_0 < -tau * lambd
-                ) + (u_0) * (abs(u - u_0) <= tau * lambd)
-
-        return prox
-
-
     def make_K(self, L, M, N):
         """
         @param M:
@@ -74,6 +60,20 @@ class TV_Denoise():
         K = sp.bmat([[nabla_x], [nabla_y], [nabla_z]])
         
         return K
+
+    def prox_G_L1(self, u, u_0, tau, lambd):
+        
+        prox = (u - tau * lambd) * (u - u_0 > tau * lambd
+                ) + (u + tau * lambd) * (u - u_0 < -tau * lambd
+                ) + (u_0) * (abs(u - u_0) <= tau * lambd)
+
+        return prox
+
+    def prox_G_L2(self, u, u_0, tau, lambd):
+        
+        prox = (u + tau*lambd*u_0) / (1 + tau * lambd)
+
+        return prox
 
 
     def proj_ball(self, Y):
@@ -141,10 +141,13 @@ class TV_Denoise():
         
         # inverted spacing is used so that h* = 0 is an infinite spacing
 
-        f = img_noisy.copy()
+        f = img_noisy
 
         L, M, N = f.shape
         img = img_noisy.reshape(L*M*N)
+
+        theta = 1.0
+
 
         # make operators
         k = self.make_K(L,M,N)
@@ -175,18 +178,110 @@ class TV_Denoise():
             u_old = u_vec
 
             u_vec = u_vec - tau * k.T @ p_vec
-            u_vec = self.prox_L1(u_vec, img, tau, lambd)
+            u_vec = self.prox_G_L1(u_vec, img, tau, lambd)
 
-            u_bar = u_vec - self.theta * (u_vec - u_old)
-
-           
+            u_bar = u_vec - theta * (u_vec - u_old)
             
 
         u_bar = u_bar.reshape(L,M,N)
         
         return u_bar
 
-    def tv_denoising_huberROF(self,img_noisy, lambd, iterations):
-        pass
+    def tv_denoising_huberROF(self,img_noisy, lambd, iterations, alpha):
+
+        f = img_noisy
+
+        L, M, N = f.shape
+        img = img_noisy.reshape(L*M*N)
+
+        theta = 1.0
+
+
+        # make operators
+        k = self.make_K(L,M,N)
+
+        # initialize primal variables
+        u_vec = np.zeros(L*M*N)
+
+        # initialize dual variables
+        p_vec = np.zeros(3*L*M*N)
+
+        # primal and dual step size
+        tau = self.lip_inv
+        sigma = self.lip_inv
+
+        u_bar = img
+    
+
+        
+        # @ is matrix multiplication of 2 variables
+
+        for it in range(0, iterations):
+            # To calculate the data term projection you can use:
+            # prox_sum_l1(x, f, tau, Wis)
+            # where x is the parameter of the projection function i.e. u^(n+(1/2))
+            
+            divisor = (1 + sigma * alpha)
+            p_vec = p_vec + sigma*k@(u_bar)            
+            p_vec = np.ravel(self.proj_ball(p_vec[0:3*L*M*N].reshape(3, L*M*N)/divisor))
+            
+            u_old = u_vec
+
+            u_vec = u_vec - tau * k.T @ p_vec
+            u_vec = self.prox_G_L2(u_vec, img, tau, lambd)
+
+            u_bar = u_vec - theta * (u_vec - u_old)
+            
+
+        u_bar = u_bar.reshape(L,M,N)
+        
+        return u_bar
+
     def tv_denoising_L2(self,img_noisy, lambd, iterations):
-        pass
+
+        f = img_noisy
+
+        L, M, N = f.shape
+        img = img_noisy.reshape(L*M*N)
+
+        theta = 1.0
+
+
+        # make operators
+        k = self.make_K(L,M,N)
+
+        # initialize primal variables
+        u_vec = np.zeros(L*M*N)
+
+        # initialize dual variables
+        p_vec = np.zeros(3*L*M*N)
+
+        # primal and dual step size
+        tau = self.lip_inv
+        sigma = self.lip_inv
+
+        u_bar = img
+    
+
+        
+        # @ is matrix multiplication of 2 variables
+
+        for it in range(0, iterations):
+            # To calculate the data term projection you can use:
+            # prox_sum_l1(x, f, tau, Wis)
+            # where x is the parameter of the projection function i.e. u^(n+(1/2))
+            
+            p_vec = p_vec + sigma*k@(u_bar)            
+            p_vec = np.ravel(self.proj_ball(p_vec[0:3*L*M*N].reshape(3, L*M*N)))
+            
+            u_old = u_vec
+
+            u_vec = u_vec - tau * k.T @ p_vec
+            u_vec = self.prox_G_L2(u_vec, img, tau, lambd)
+
+            u_bar = u_vec - theta * (u_vec - u_old)
+            
+
+        u_bar = u_bar.reshape(L,M,N)
+        
+        return u_bar

@@ -20,7 +20,8 @@ class TGV_Reco():
 
          # Lipschitz constant of K, according to papers ok, aber beim probieren ist es eigentlich zu klein.
         #self.lip_inv = np.sqrt((2*(1/self.h_inv)**2)/(16+(1/self.h_inv)**2+np.sqrt(32*(1/self.h_inv)**2+(1/self.h_inv)**4)))
-        self.lip_inv = np.sqrt(1/64)
+        self.lip_inv = 10
+        #self.lip_inv = np.sqrt(1/64)
         #self.lip_inv = np.sqrt(1/12)
 
         # dimension for which the fft and ifft should be calculated, standard is 2D
@@ -56,32 +57,6 @@ class TGV_Reco():
 
         return nabla, nabla_x, nabla_y, nabla_z
 
-    # not used anymore bc r has the prox op already
-    # def prox_U(self, x, uk, tau, gamma):
-    #     """
-    #     Used for calculation of the dataterm projection
-
-    #     @param uk: initial reconstructed image from raw data
-
-    #     compute pi with pi = \bar x + tau * W_i
-    #     @param u: MN
-    #     @param tau: scalar
-    #     @param Wis: MN x K
-    #     @param f: MN x K
-    #     """
-      
-    #     prox = (uk*tau/gamma + x)/(1 + tau/gamma)
-
-    #     # bei nur 2 einträgen (f, pis) macht median dasselbe wie mean und nimmt den mittelwert
-    #     # egal wieviele einträge, über eine achse nimmt er nur den median und diese
-    #     # dimension verschwindet dann sogar, d.h. aus shape (M*N,2) wird dann (M*N,)
-    #     # Rückgabe hat also K dimension wieder weniger
-    #     # pis = u[...] + tau
-    #     # prox = np.median((uk,pis), axis=0)
-
-    #     return prox
-
-
     def make_K(self, L, M, N):
         """
         @param M:
@@ -96,38 +71,39 @@ class TGV_Reco():
             [None, None, nabla_x, None], [None, None, nabla_y, None], [None, None, nabla_z, None],
             [None, None, None, nabla_x], [None, None, None, nabla_y], [None, None, None, nabla_z]])
 
-
         return K
 
-
-    def proj_ball(self, Z, alpha):
+    def proj_ball(self, Y, alpha):
         """
         Projection to a ball as described in Equation (6)
         @param Y: either 2xMN or 4xMN
         @param alpha: scalar hyperparameter alpha
         @return: projection result either 2xMN or 4xMN
         """
-        norm = np.linalg.norm(Z, axis=0)
-        projection = Z / np.maximum(alpha, norm)
+        norm = np.linalg.norm(Y, axis=0)
+        projection = Y / np.maximum(alpha, norm)
     
         return projection
 
+    def prox_F(self, r, sigma, lambd):
+        
+        return (r*lambd)/(lambd + sigma) # this is from knoll stollberger tgv paper
 
  
     #@TODO temporarily absolute value of coils sensitivities just for trying
-    def DA(self, u, sens_c, sparse_mask):
+    def op_A(self, u, sens_c, sparse_mask):
         """
         input parameter:
 
         u - current reconstructed sample in spatial domain, size (L,M,N)
         sens_c - coil sensitivities 
         """
-        return sparse_mask * np.fft.fftn((sens_c * u), axes=self.fft_dim)
+        return sparse_mask * np.fft.fftn((sens_c * u), axes=self.fft_dim, norm='ortho')
 
 
         
     #@TODO temporaril absolute value of coils sensitivities just for trying
-    def DAH(self, r, sens_c, sparse_mask):
+    def op_A_conj(self, r, sens_c, sparse_mask):
 
         """
         input parameter:
@@ -135,16 +111,10 @@ class TGV_Reco():
         R - dual variable of difference of current reconstructed sample u(n) in fourier domain and initial fourier data
         """
         
-        r_IFT = sens_c.conjugate() * np.fft.ifftn(r*sparse_mask,axes=self.fft_dim)
+        r_IFT = sens_c.conjugate() * np.fft.ifftn(r*sparse_mask,axes=self.fft_dim, norm='ortho')
 
         
         return np.sum( r_IFT, axis=0)
-
-
-    def prox_R(self, R, sigma, lambd):
-        
-        
-        return (R*lambd)/(lambd + sigma) # this is from knoll stollberger tgv paper
 
    # if its a big dataset, a lot of RAM is needed because all the raw data to process will be 
     # stored in the RAM
@@ -203,20 +173,18 @@ class TGV_Reco():
         # C is number of coils, L,M,N are the length of the 3D dimensions
         C, L, M, N = d.shape
         
-
         # make operators
         k = self.make_K(L,M,N)
-     
        
         # initialize primal variables - numpy arrays shape (L*M*N, )
-        u = np.zeros(L*M*N, dtype=complex)
-        v = np.zeros(3*L*M*N, dtype=complex)
+        u = np.zeros(L*M*N, dtype=np.complex128)
+        v = np.zeros(3*L*M*N, dtype=np.complex128)
 
         #@TODO change p,q to z1 z2
         # initialize dual variables
-        p = np.zeros(3*L*M*N, dtype=complex)
-        q = np.zeros(9*L*M*N, dtype=complex)
-        r = np.zeros(C*L*M*N, dtype=complex)
+        p = np.zeros(3*L*M*N, dtype=np.complex128)
+        q = np.zeros(9*L*M*N, dtype=np.complex128)
+        r = np.zeros(C*L*M*N, dtype=np.complex128)
 
 
         # primal and dual step size
@@ -226,15 +194,11 @@ class TGV_Reco():
         tau_n = tau
         tau_n_old = tau
 
-        # array of array (still shape (xxxx, ))
-        u_vec = np.concatenate([u, v])
-        p_vec = np.concatenate([p, q])
-
-        # list (not array!) which contains n arrays, each with length (xxxx, )
-        
+        x_vec = np.concatenate([u, v])
+        y_vec = np.concatenate([p, q])     
 
         # temp vector for DAH*r 
-        DAHr = np.zeros_like(u_vec, dtype=complex)
+        DAHr = np.zeros_like(x_vec, dtype=np.complex128)
 
         # @ is matrix multiplication of 2 variables
 
@@ -244,42 +208,51 @@ class TGV_Reco():
             # where x is the parameter of the projection function i.e. u^(n+(1/2))
             
             #add result of DAHr only to first L*M*N entries, because they belong to the u_vec , v_vec should not be influenced
-            DAHr[0:L*M*N] = np.ravel(self.DAH(r.reshape(C,L,M,N), sens_coils, sparse_mask))
+            DAHr[0:L*M*N] = np.ravel(self.op_A_conj(r.reshape(C,L,M,N), sens_coils, sparse_mask))
             
             # prox for u not necessary
-            u_vec_old = u_vec
-            u_vec = u_vec - tau_n_old * (k.T @ p_vec + DAHr)
-            u = u_vec[0:L*M*N]
+            u_vec_old = x_vec
+            x_vec = x_vec - tau_n_old * (k.T @ y_vec + DAHr)
+            u = x_vec[0:L*M*N]
             # v = u_vec[L*M*N:12*L*M*N]
             # u_vec = np.concatenate([u, v])
 
             tau_n = tau_n_old*(1+theta)**0.5
+            print("new tau")
+            print("Tau_n:", tau_n)
             
             while True:
                 theta = tau_n/tau_n_old
                 sigma = beta * tau_n
 
-                u_bar = u_vec + theta * (u_vec - u_vec_old)
+                u_bar = x_vec + theta * (x_vec - u_vec_old)
                 
-                y_old = np.concatenate([p_vec, r])
-                DAHr[0:L*M*N] = np.ravel(self.DAH(r.reshape(C,L,M,N), sens_coils, sparse_mask))
-                ky_old = k.T@p_vec + DAHr
+                y_old = np.concatenate([y_vec, r])
+                DAHr[0:L*M*N] = np.ravel(self.op_A_conj(r.reshape(C,L,M,N), sens_coils, sparse_mask))
+                ky_old = k.T@y_vec + DAHr
 
-                p_temp = p_vec + sigma*k@(u_bar)
+                p_temp = y_vec + sigma*k@(u_bar)
                 p = np.ravel(self.proj_ball(p_temp[0:3*L*M*N].reshape(3, L*M*N), alpha1))
                 q = np.ravel(self.proj_ball(p_temp[3*L*M*N:12*L*M*N].reshape(9, L*M*N), alpha0))
-                p_vec = np.concatenate([p, q])
-                r_temp = r + np.ravel(sigma*(self.DA(u_bar[0:L*M*N].reshape(L,M,N), sens_coils, sparse_mask)-d))
-                r = np.ravel(self.prox_R(r_temp, sigma, lambd))
+                y_vec = np.concatenate([p, q])
+                r_temp = r + np.ravel(sigma*(self.op_A(u_bar[0:L*M*N].reshape(L,M,N), sens_coils, sparse_mask)-d))
+                r = np.ravel(self.prox_F(r_temp, sigma, lambd))
 
-                y_new = np.concatenate([p_vec, r])
-                DAHr[0:L*M*N] = np.ravel(self.DAH(r.reshape(C,L,M,N), sens_coils, sparse_mask))
-                ky_new = k.T@p_vec + DAHr
+                y_new = np.concatenate([y_vec, r])
+                DAHr[0:L*M*N] = np.ravel(self.op_A_conj(r.reshape(C,L,M,N), sens_coils, sparse_mask))
+                ky_new = k.T@y_vec + DAHr
 
-                if (np.sqrt(beta)*tau_n*(np.linalg.norm(ky_new - ky_old))) <= (delta*(np.linalg.norm(y_new - y_old))):
+                print("calculate norm")
+                LS = np.sqrt(beta)*tau_n*(np.linalg.norm(ky_new - ky_old))
+                RS = delta*(np.linalg.norm(y_new - y_old))
+                print("LS is:", LS, "and of type:", type(LS))
+                print("RS is:", RS, "and of type:", type(RS))
+                if  LS <= RS:
+                    print("Update tau!")
                     break
                 else: tau_n = tau_n * mu
-
+                print("reduce tau")
+                print("Tau_n:", tau_n)
 
         u = u.reshape(L,M,N)
            
