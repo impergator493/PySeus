@@ -164,7 +164,7 @@ class TGV_Reco():
         beta = 1
         theta = 1
         mu = 0.5
-        delta = 0.5
+        delta = 0.98
 
         # d is the variable which contains all the k-space data for the sample for all coils
         # and has dimension Nc*Nz*Ny*Nx
@@ -192,13 +192,12 @@ class TGV_Reco():
         sigma = self.lip_inv
 
         tau_n = tau
-        tau_n_old = tau
 
         x_vec = np.concatenate([u, v])
         y_vec = np.concatenate([p, q])     
 
         # temp vector for DAH*r 
-        DAHr = np.zeros_like(x_vec, dtype=np.complex128)
+        Aconj = np.zeros_like(x_vec, dtype=np.complex128)
 
         # @ is matrix multiplication of 2 variables
 
@@ -208,16 +207,17 @@ class TGV_Reco():
             # where x is the parameter of the projection function i.e. u^(n+(1/2))
             
             #add result of DAHr only to first L*M*N entries, because they belong to the u_vec , v_vec should not be influenced
-            DAHr[0:L*M*N] = np.ravel(self.op_A_conj(r.reshape(C,L,M,N), sens_coils, sparse_mask))
+            Aconj[0:L*M*N] = np.ravel(self.op_A_conj(r.reshape(C,L,M,N), sens_coils, sparse_mask))
             
             # prox for u not necessary
             u_vec_old = x_vec
-            x_vec = x_vec - tau_n_old * (k.T @ y_vec + DAHr)
+            x_vec = x_vec - tau_n * (k.T @ y_vec + Aconj)
             u = x_vec[0:L*M*N]
             # v = u_vec[L*M*N:12*L*M*N]
             # u_vec = np.concatenate([u, v])
 
-            tau_n = tau_n_old*(1+theta)**0.5
+            tau_n_old = tau_n
+            tau_n = tau_n*(1+theta)**0.5
             print("new tau")
             print("Tau_n:", tau_n)
             
@@ -228,8 +228,8 @@ class TGV_Reco():
                 u_bar = x_vec + theta * (x_vec - u_vec_old)
                 
                 y_old = np.concatenate([y_vec, r])
-                DAHr[0:L*M*N] = np.ravel(self.op_A_conj(r.reshape(C,L,M,N), sens_coils, sparse_mask))
-                ky_old = k.T@y_vec + DAHr
+                Aconj[0:L*M*N] = np.ravel(self.op_A_conj(r.reshape(C,L,M,N), sens_coils, sparse_mask))
+                ky_old = k.T@y_vec + Aconj
 
                 p_temp = y_vec + sigma*k@(u_bar)
                 p = np.ravel(self.proj_ball(p_temp[0:3*L*M*N].reshape(3, L*M*N), alpha1))
@@ -239,8 +239,8 @@ class TGV_Reco():
                 r = np.ravel(self.prox_F(r_temp, sigma, lambd))
 
                 y_new = np.concatenate([y_vec, r])
-                DAHr[0:L*M*N] = np.ravel(self.op_A_conj(r.reshape(C,L,M,N), sens_coils, sparse_mask))
-                ky_new = k.T@y_vec + DAHr
+                Aconj[0:L*M*N] = np.ravel(self.op_A_conj(r.reshape(C,L,M,N), sens_coils, sparse_mask))
+                ky_new = k.T@y_vec + Aconj
 
                 print("calculate norm")
                 LS = np.sqrt(beta)*tau_n*(np.linalg.norm(ky_new - ky_old))

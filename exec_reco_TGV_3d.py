@@ -1,5 +1,6 @@
 import numpy as np
 from pyseus.processing.tgv_reconstruction import TGV_Reco
+from pyseus.processing.tv_reconstruction import TV_Reco
 import h5py    
 import numpy as np  
 import matplotlib.pyplot as plt  
@@ -95,10 +96,12 @@ sp_mask_bin[R<0.15] = 1
 
 ########
 
+#obj = TGV_Reco()
+obj = TV_Reco()
 
-obj = TGV_Reco()
+#denoised_reco = obj.tgv2_reconstruction_gen(0,raw_data, coils, sp_mask_bin2, (10, 2, 1,10), (1.0, 1.0))
+denoised_reco = obj.tv_reconstruction_gen(TV_Reco.tv_l2_reconstruction, 0, raw_data, coils, sp_mask_bin2, (10, 10), (1.0, 1.0))
 
-denoised_reco = obj.tgv2_reconstruction_gen(0,raw_data, coils, sp_mask_bin2, (10, 2, 1,10), (1.0, 1.0))
 
 #np.save('denoise_u_veclist', denoised_reco)
 

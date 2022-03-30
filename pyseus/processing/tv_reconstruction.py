@@ -21,7 +21,8 @@ class TV_Reco():
 
          # Lipschitz constant of K, according to papers ok, aber beim probieren ist es eigentlich zu klein.
         #self.lip_inv = np.sqrt((2*(1/self.h_inv)**2)/(16+(1/self.h_inv)**2+np.sqrt(32*(1/self.h_inv)**2+(1/self.h_inv)**4)))
-        self.lip_inv = np.sqrt(1/64)
+        #self.lip_inv = np.sqrt(1/64)
+        self.lip_inv = 10
 
         # dimension for which the fft and ifft should be calculated, standard is 2D
         self.fft_dim = (-2,-1)
@@ -163,7 +164,7 @@ class TV_Reco():
         beta = 1
         theta = 1
         mu = 0.5
-        delta = 1
+        delta = 0.98
 
         # d is the variable which contains all the k-space data for the sample for all coils
         # and has dimension Nc*Nz*Ny*Nx
@@ -190,11 +191,14 @@ class TV_Reco():
         tau = self.lip_inv
         sigma = self.lip_inv
 
-        tau_n = tau
-        tau_n_old = tau
+        tau_old = tau
+        u_old = u
+        y_old = np.zeros((3+C)*L*M*N, dtype=np.complex128)
+        kTy_old = np.zeros(L*M*N, dtype=np.complex128)
 
-        # temp vector for DAH*r 
-        DAHr = np.zeros_like(u, dtype=np.complex128)
+
+        # temp vector for A* * r
+        Aconj_r = np.zeros_like(u, dtype=np.complex128)
 
         # @ is matrix multiplication of 2 variables
 
@@ -204,43 +208,52 @@ class TV_Reco():
             # where x is the parameter of the projection function i.e. u^(n+(1/2))
             
             #add result of DAHr only to first L*M*N entries, because they belong to the u_vec , v_vec should not be influenced
-            DAHr[0:L*M*N] = np.ravel(self.op_A_conj(r.reshape(C,L,M,N), sens_coils, sparse_mask))
+            Aconj_r[0:L*M*N] = np.ravel(self.op_A_conj(r.reshape(C,L,M,N), sens_coils, sparse_mask))
             
             # prox for u not necessary
-            u_old = u
-            u = u - tau_n_old * (k.T @ p + DAHr)
+            u_new = u_old - tau_old * (k.T @ p + Aconj_r)
             # v = u_vec[L*M*N:12*L*M*N]
             # u_vec = np.concatenate([u, v])
 
-            tau_n = tau_n_old*(1+theta)**0.5
-            
-            while True:
-                theta = tau_n/tau_n_old
-                sigma = beta * tau_n
+            tau_new = tau_old*(1+theta)**0.5
+            print("new tau")
+            print("Tau_n:", tau_new)
 
-                u_bar = u + theta * (u - u_old)
-                
-                y_old = np.concatenate([p, r])
-                DAHr[0:L*M*N] = np.ravel(self.op_A_conj(r.reshape(C,L,M,N), sens_coils, sparse_mask))
-                ky_old = k.T@p + DAHr
+            while True:
+                theta = tau_new/tau_old
+                sigma = beta * tau_new
+                u_bar = u_new + theta * (u_new - u_old)
 
                 p_temp = p + sigma*k@(u_bar)
                 p = np.ravel(self.proj_ball(p_temp[0:3*L*M*N].reshape(3, L*M*N)))
                 r_temp = r + np.ravel(sigma*(self.op_A(u_bar[0:L*M*N].reshape(L,M,N), sens_coils, sparse_mask)-d))
                 r = np.ravel(self.prox_F(r_temp, sigma, lambd))
 
+                Aconj_r[0:L*M*N] = np.ravel(self.op_A_conj(r.reshape(C,L,M,N), sens_coils, sparse_mask))
+                kTy_new = k.T @ p + Aconj_r
                 y_new = np.concatenate([p, r])
-                DAHr[0:L*M*N] = np.ravel(self.op_A_conj(r.reshape(C,L,M,N), sens_coils, sparse_mask))
-                ky_new = k.T@p + DAHr
 
-                if (np.sqrt(beta)*tau_n*(np.linalg.norm(ky_new - ky_old))) <= (delta*(np.linalg.norm(y_new - y_old))):
-                    print("Update tau!")
+
+                print("calculate norm")
+                LS = (np.sqrt(beta)*tau_new*(np.linalg.norm(kTy_new - kTy_old)))
+                RS = delta*(np.linalg.norm(y_new - y_old))
+                print("LS is:", LS, "and of type:", type(LS))
+                print("RS is:", RS, "and of type:", type(RS))
+                if  LS <= RS:
+                    print("Break Linesearch")
                     break
-                else: tau_n = tau_n * mu
+                else: tau_new = tau_new * mu
+                print("reduce tau")
+                print("Tau_n:", tau_new)
 
+            # update variables
+            u_old = u_new
+            y_old = y_new
+            kTy_old = kTy_new
+            tau_old = tau_new
 
-        u = u.reshape(L,M,N)
+        u_new = u_new.reshape(L,M,N)
            
-        return u
+        return u_new
 
 
