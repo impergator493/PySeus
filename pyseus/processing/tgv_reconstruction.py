@@ -191,13 +191,16 @@ class TGV_Reco():
         tau = self.lip_inv
         sigma = self.lip_inv
 
-        tau_n = tau
+        tau_old = tau
+        x_old = np.concatenate([u, v])
+        pq_old = np.concatenate([p, q])
+        y_old = np.zeros((3+9+C)*L*M*N, dtype=np.complex128)
+        kTy_old = np.zeros(L*M*N, dtype=np.complex128)
 
-        x_vec = np.concatenate([u, v])
-        y_vec = np.concatenate([p, q])     
+            
 
         # temp vector for DAH*r 
-        Aconj = np.zeros_like(x_vec, dtype=np.complex128)
+        Aconj_r = np.zeros_like(x_old, dtype=np.complex128)
 
         # @ is matrix multiplication of 2 variables
 
@@ -207,43 +210,40 @@ class TGV_Reco():
             # where x is the parameter of the projection function i.e. u^(n+(1/2))
             
             #add result of DAHr only to first L*M*N entries, because they belong to the u_vec , v_vec should not be influenced
-            Aconj[0:L*M*N] = np.ravel(self.op_A_conj(r.reshape(C,L,M,N), sens_coils, sparse_mask))
+            Aconj_r[0:L*M*N] = np.ravel(self.op_A_conj(r.reshape(C,L,M,N), sens_coils, sparse_mask))
             
             # prox for u not necessary
-            u_vec_old = x_vec
-            x_vec = x_vec - tau_n * (k.T @ y_vec + Aconj)
-            u = x_vec[0:L*M*N]
-            # v = u_vec[L*M*N:12*L*M*N]
-            # u_vec = np.concatenate([u, v])
+            x_new = x_old - tau_n * (k.T @ pq_old + Aconj_r)
+            #u = x_new[0:L*M*N]
 
-            tau_n_old = tau_n
-            tau_n = tau_n*(1+theta)**0.5
+            tau_new = tau_old*(1+theta)**0.5
             print("new tau")
-            print("Tau_n:", tau_n)
+            print("Tau_n:", tau_new)
             
             while True:
-                theta = tau_n/tau_n_old
-                sigma = beta * tau_n
+                theta = tau_new/tau_old
+                sigma = beta * tau_new
+                x_bar = x_new + theta * (x_new - x_old)
 
-                u_bar = x_vec + theta * (x_vec - u_vec_old)
-                
-                y_old = np.concatenate([y_vec, r])
-                Aconj[0:L*M*N] = np.ravel(self.op_A_conj(r.reshape(C,L,M,N), sens_coils, sparse_mask))
-                ky_old = k.T@y_vec + Aconj
-
-                p_temp = y_vec + sigma*k@(u_bar)
-                p = np.ravel(self.proj_ball(p_temp[0:3*L*M*N].reshape(3, L*M*N), alpha1))
-                q = np.ravel(self.proj_ball(p_temp[3*L*M*N:12*L*M*N].reshape(9, L*M*N), alpha0))
-                y_vec = np.concatenate([p, q])
-                r_temp = r + np.ravel(sigma*(self.op_A(u_bar[0:L*M*N].reshape(L,M,N), sens_coils, sparse_mask)-d))
+                pq_temp = pq_old + sigma*k@(x_bar)
+                p = np.ravel(self.proj_ball(pq_temp[0:3*L*M*N].reshape(3, L*M*N), alpha1))
+                q = np.ravel(self.proj_ball(pq_temp[3*L*M*N:12*L*M*N].reshape(9, L*M*N), alpha0))
+                pq_old = np.concatenate([p, q])
+                r_temp = r + np.ravel(sigma*(self.op_A(x_bar[0:L*M*N].reshape(L,M,N), sens_coils, sparse_mask)-d))
                 r = np.ravel(self.prox_F(r_temp, sigma, lambd))
 
-                y_new = np.concatenate([y_vec, r])
-                Aconj[0:L*M*N] = np.ravel(self.op_A_conj(r.reshape(C,L,M,N), sens_coils, sparse_mask))
-                ky_new = k.T@y_vec + Aconj
+                Aconj_r[0:L*M*N] = np.ravel(self.op_A_conj(r.reshape(C,L,M,N), sens_coils, sparse_mask))
+                kTy_new = k.T@pq_old + Aconj_r
+                y_new = np.concatenate([p, r])
 
+
+                y_new = np.concatenate([pq_old, r])
+                Aconj_r[0:L*M*N] = np.ravel(self.op_A_conj(r.reshape(C,L,M,N), sens_coils, sparse_mask))
+                ky_new = k.T@pq_old + Aconj_r
+
+                print("TGV")
                 print("calculate norm")
-                LS = np.sqrt(beta)*tau_n*(np.linalg.norm(ky_new - ky_old))
+                LS = np.sqrt(beta)*tau_n*(np.linalg.norm(kTy_new - kTy_old))
                 RS = delta*(np.linalg.norm(y_new - y_old))
                 print("LS is:", LS, "and of type:", type(LS))
                 print("RS is:", RS, "and of type:", type(RS))

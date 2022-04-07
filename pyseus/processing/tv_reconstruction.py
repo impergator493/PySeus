@@ -22,7 +22,7 @@ class TV_Reco():
          # Lipschitz constant of K, according to papers ok, aber beim probieren ist es eigentlich zu klein.
         #self.lip_inv = np.sqrt((2*(1/self.h_inv)**2)/(16+(1/self.h_inv)**2+np.sqrt(32*(1/self.h_inv)**2+(1/self.h_inv)**4)))
         #self.lip_inv = np.sqrt(1/64)
-        self.lip_inv = 10
+        self.lip_inv = 100
 
         # dimension for which the fft and ifft should be calculated, standard is 2D
         self.fft_dim = (-2,-1)
@@ -159,16 +159,22 @@ class TV_Reco():
         @return: tuple of u with shape MxN and v with shape 2xMxN
         """
 
+        # Check if Coils are adjoint
+        sumsqrC = np.sum(sens_coils*np.conj(sens_coils),axis=0)
+        sens_coils /= np.sqrt(sumsqrC)
+
 
         # Parameters
         beta = 1
         theta = 1
         mu = 0.5
-        delta = 0.98
+        delta = 0.5
 
         # d is the variable which contains all the k-space data for the sample for all coils
         # and has dimension Nc*Nz*Ny*Nx
-        d = img_kspace
+        d = img_kspace/np.linalg.norm(img_kspace)
+
+    
 
         # C is number of coils, L,M,N are the length of the 3D dimensions
         C, L, M, N = d.shape
@@ -178,27 +184,25 @@ class TV_Reco():
         k = self.make_K(L,M,N)
      
        
-        # initialize primal variables - numpy arrays shape (L*M*N, )
-        u = np.zeros(L*M*N, dtype=np.complex128)
+        # this is basically u_old, just defined here for better readability
+        u_old = np.zeros(L*M*N, dtype=np.complex128)
 
         #@TODO change p,q to z1 z2
         # initialize dual variables
-        p = np.zeros(3*L*M*N, dtype=np.complex128)
-        r = np.zeros(C*L*M*N, dtype=np.complex128)
+        p_old = np.zeros(3*L*M*N, dtype=np.complex128)
+        r_old = np.zeros(C*L*M*N, dtype=np.complex128)
 
 
         # primal and dual step size
-        tau = self.lip_inv
+        tau_old = self.lip_inv
         sigma = self.lip_inv
 
-        tau_old = tau
-        u_old = u
         y_old = np.zeros((3+C)*L*M*N, dtype=np.complex128)
         kTy_old = np.zeros(L*M*N, dtype=np.complex128)
 
 
         # temp vector for A* * r
-        Aconj_r = np.zeros_like(u, dtype=np.complex128)
+        Aconj_r = np.zeros_like(u_old, dtype=np.complex128)
 
         # @ is matrix multiplication of 2 variables
 
@@ -208,10 +212,10 @@ class TV_Reco():
             # where x is the parameter of the projection function i.e. u^(n+(1/2))
             
             #add result of DAHr only to first L*M*N entries, because they belong to the u_vec , v_vec should not be influenced
-            Aconj_r[0:L*M*N] = np.ravel(self.op_A_conj(r.reshape(C,L,M,N), sens_coils, sparse_mask))
+            Aconj_r = np.ravel(self.op_A_conj(r_old.reshape(C,L,M,N), sens_coils, sparse_mask))
             
             # prox for u not necessary
-            u_new = u_old - tau_old * (k.T @ p + Aconj_r)
+            u_new = u_old - tau_old * (k.T @ p_old + Aconj_r)
             # v = u_vec[L*M*N:12*L*M*N]
             # u_vec = np.concatenate([u, v])
 
@@ -219,20 +223,23 @@ class TV_Reco():
             print("new tau")
             print("Tau_n:", tau_new)
 
+
+
             while True:
+                #import ipdb
+                #ipdb.set_trace()
                 theta = tau_new/tau_old
                 sigma = beta * tau_new
                 u_bar = u_new + theta * (u_new - u_old)
 
-                p_temp = p + sigma*k@(u_bar)
-                p = np.ravel(self.proj_ball(p_temp[0:3*L*M*N].reshape(3, L*M*N)))
-                r_temp = r + np.ravel(sigma*(self.op_A(u_bar[0:L*M*N].reshape(L,M,N), sens_coils, sparse_mask)-d))
-                r = np.ravel(self.prox_F(r_temp, sigma, lambd))
+                p_temp = p_old + sigma*k@(u_bar)
+                p_new = np.ravel(self.proj_ball(p_temp.reshape(3, L*M*N)))
+                r_temp = r_old + np.ravel(sigma*(self.op_A(u_bar.reshape(L,M,N), sens_coils, sparse_mask)-d))
+                r_new = np.ravel(self.prox_F(r_temp, sigma, lambd))
 
-                Aconj_r[0:L*M*N] = np.ravel(self.op_A_conj(r.reshape(C,L,M,N), sens_coils, sparse_mask))
-                kTy_new = k.T @ p + Aconj_r
-                y_new = np.concatenate([p, r])
-
+                Aconj_r = np.ravel(self.op_A_conj(r_new.reshape(C,L,M,N), sens_coils, sparse_mask))
+                kTy_new = k.T @ p_new + Aconj_r
+                y_new = np.concatenate([p_new, r_new])
 
                 print("calculate norm")
                 LS = (np.sqrt(beta)*tau_new*(np.linalg.norm(kTy_new - kTy_old)))
@@ -248,6 +255,8 @@ class TV_Reco():
 
             # update variables
             u_old = u_new
+            p_old = p_new
+            r_old = r_new
             y_old = y_new
             kTy_old = kTy_new
             tau_old = tau_new

@@ -16,8 +16,6 @@ from pyseus.settings import DataType
 #load(r'D:\Mario\Studium\Studieren\Masterarbeit\03_Daten\Noise_generation\Mario_Master\VFA_test_cart_noise005_alpha9_fft.h5', DataType.KSPACE)
 load(r'D:\Mario\Studium\Studieren\Masterarbeit\03_Daten\Noise_generation\Mario_Master\VFA_test_cart.h5', DataType.KSPACE)
 
-#load()
-
 #load(r'D:\Mario\Studium\Studieren\Masterarbeit\03_Daten\Noise_generation\Mario_Master\VFA_test_cart_noise01_alpha9_image_complex.h5', DataType.IMAGE)
 #load('./tests/samples/sample.h5', DataType.IMAGE)
 

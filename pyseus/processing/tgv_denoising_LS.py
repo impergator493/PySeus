@@ -17,8 +17,8 @@ class TGV_Denoise():
         self.hz_inv = 1.0
 
          # Lipschitz constant of K, according to knoll paper TGV reco and denoising, with iso spacing for x and y
-        self.lip_inv = np.sqrt((2*(1/self.h_inv)**2)/(16+(1/self.h_inv)**2+np.sqrt(32*(1/self.h_inv)**2+(1/self.h_inv)**4)))
-
+        #self.lip_inv = np.sqrt((2*(1/self.h_inv)**2)/(16+(1/self.h_inv)**2+np.sqrt(32*(1/self.h_inv)**2+(1/self.h_inv)**4)))
+        self.lip_inv = 100
 
     def _make_nabla(self,L, M, N):
         row = np.arange(0, L * M * N)
@@ -156,6 +156,11 @@ class TGV_Denoise():
         # star argument to take really the value of the variable as argument
         # if 2dim noisy data make it a 3D array, if 3D just let it be
         
+        # Parameters
+        beta = 1
+        theta = 1
+        mu = 0.5
+        delta = 0.5
 
         # inverted spacing is used so that h* = 0 is an infinite spacing
         f = img_noisy
@@ -167,19 +172,19 @@ class TGV_Denoise():
         k = self.make_K(L,M,N)
 
         # initialize primal variables
-        u = np.zeros(L*M*N)
-        v = np.zeros(3*L*M*N)
+        u_old = np.zeros(L*M*N)
+        v_old = np.zeros(3*L*M*N)
 
         # initialize dual variables
-        p = np.zeros(3*L*M*N)
-        q = np.zeros(9*L*M*N)
+        p_new = np.zeros(3*L*M*N)
+        q_new = np.zeros(9*L*M*N)
 
         # primal and dual step size
-        tau = self.lip_inv
+        tau_old = self.lip_inv
         sigma = self.lip_inv
 
-        x_vec = np.concatenate([u, v])
-        y_vec = np.concatenate([p, q])
+        x_vec_old = np.concatenate([u_old, v_old])
+        y_vec_old = np.concatenate([p_new, q_new])
 
         
         # @ is matrix multiplication of 2 variables
@@ -188,20 +193,44 @@ class TGV_Denoise():
             # To calculate the data term projection you can use:
             # prox_sum_l1(x, f, tau, Wis)
             # where x is the parameter of the projection function i.e. u^(n+(1/2))
-            x_vec_old = x_vec
-            x_vec = x_vec - tau * k.T @ y_vec
-            u = self.prox_G(x_vec[0:L*M*N], img, tau, lambd)
-            v = x_vec[L*M*N:12*L*M*N]
-            x_vec = np.concatenate([u, v])
+            x_vec_new = x_vec_old - tau_old * k.T @ y_vec_old
+            u_new = self.prox_G(x_vec_new[0:L*M*N], img, tau_old, lambd)
+            v_new = x_vec_new[L*M*N:12*L*M*N]
+            x_vec_new = np.concatenate([u_new, v_new])
 
-            x_bar = 2*x_vec - x_vec_old
+            tau_new = tau_old*(1+theta)**0.5
+            print("new tau")
+            print("Tau_n:", tau_new)
 
-            pq_temp = y_vec + sigma*k@(x_bar)
-            p = np.ravel(self.proj_ball(pq_temp[0:3*L*M*N].reshape(3, L*M*N), alpha1))
-            q = np.ravel(self.proj_ball(pq_temp[3*L*M*N:12*L*M*N].reshape(9, L*M*N), alpha0))
-            y_vec = np.concatenate([p, q])
+            while True:
+                theta = tau_new/tau_old
+                sigma = beta * tau_new
+                x_bar = x_vec_new + theta * (x_vec_new - x_vec_old)
 
-        u = u.reshape(L,M,N)
-        return u
+                y_temp = y_vec_old + sigma*k@(x_bar)
+                p_new = np.ravel(self.proj_ball(y_temp[0:3*L*M*N].reshape(3, L*M*N), alpha1))
+                q_new = np.ravel(self.proj_ball(y_temp[3*L*M*N:12*L*M*N].reshape(9, L*M*N), alpha0))
+                y_vec_new = np.concatenate([p_new, q_new])
+
+
+                print("Denoise TGV: calculate norm")
+                LS = (np.sqrt(beta)*tau_new*(np.linalg.norm(k.T@y_vec_new - k.T@y_vec_old)))
+                RS = delta*(np.linalg.norm(y_vec_new - y_vec_old))
+                print("LS is:", LS, "and of type:", type(LS))
+                print("RS is:", RS, "and of type:", type(RS))
+                if  LS <= RS:
+                    print("Break Linesearch")
+                    break
+                else: tau_new = tau_new * mu
+                print("reduce tau")
+                print("Tau_n:", tau_new)
+
+            # update variables
+            x_vec_old = x_vec_new
+            y_vec_old = y_vec_new
+            tau_old = tau_new
+
+        u_new = u_new.reshape(L,M,N)
+        return u_new
 
 

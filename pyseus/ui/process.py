@@ -9,7 +9,7 @@ from ..settings import ProcessType, ProcessSelDataType, ProcessRegType, DataType
 from pyseus.processing.threading_process_old import ProcessThread
 from pyseus.processing.thread_worker import Worker
 from pyseus.processing.tv_denoising import TV_Denoise
-from pyseus.processing.tgv_denoising import TGV_Denoise
+from pyseus.processing.tgv_denoising_LS import TGV_Denoise
 from pyseus.processing.tgv_reconstruction import TGV_Reco
 from pyseus.modes.grayscale import Grayscale
 from PySide2.QtCore import Qt, QThread
