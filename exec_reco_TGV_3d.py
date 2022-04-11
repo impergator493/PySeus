@@ -31,7 +31,7 @@ img_sos_raw = coils.conjugate() * np.fft.ifft2(raw_data)
 img_sos_raw = (np.sum(abs(img_sos_raw)**2, axis=0))**0.5
 
 # sparse matrix, for having a sparse k-space to demonstrate
-sp_mask_un = np.random.choice([0,1], size=data_size, p=[0.5, 0.5])
+sp_mask_un = np.random.choice([0,1], size=data_size, p=[0.40, 0.60])
 img_sp_un = np.fft.ifft2(raw_data*sp_mask_un)
 img_sp_un = (np.sum(abs(img_sp_un)**2,axis=0))**0.5
 
@@ -58,7 +58,7 @@ img_sp_lus = (np.sum(abs(img_sp_lus)**2,axis=0))**0.5
 
 # Generate mask with variable density with gaussian distribution
 
-std = 0.2
+std = 0.12
 
 sp_un = np.random.uniform(low=0.0, high=1, size=data_size)
 x = np.linspace(-1, 1, data_size[-1])
@@ -73,7 +73,7 @@ zv, yv, xv = np.meshgrid(z, y, x, indexing='ij')
 R = (xv**2 + yv**2 + zv**2)**0.5
 #Z = PDF
 Z = (1. / (std * np.sqrt(2 * np.pi))) * np.exp(-.5*(R**2 / std))
-Z[0] = Z[0]/max(Z.ravel()) + 0.3
+Z[0] = Z[0]/max(Z.ravel())*1 + 0.4
 Z[0][Z[0]>1] = 1
 # with current setting, 30% are ones
 sp_mask_own = (Z >= sp_un)
@@ -84,7 +84,6 @@ img_sp_own = np.fft.ifft2(raw_data*sp_mask_own/Z)
 img_sp_own = (np.sum(img_sp_own**2,axis=0))**0.5
 
 #number of 1 in sp_mask
-# np.count_nonzero(sp_mask)
 #sp_mask = sp_un * Z
 #sp_mask_bin = sp_mask > 0.2
 #sp_mask_bin[R<0.15] = 1
@@ -114,12 +113,20 @@ img_sp_own = (np.sum(img_sp_own**2,axis=0))**0.5
 ########
 
 #obj = TGV_Reco()
-obj = TV_Reco()
+obj = TGV_Reco()
 
-denoised_reco_own = obj.tv_reconstruction_gen(obj.tv_l2_reconstruction, 0, raw_data, coils, sp_mask_own/Z, (10, 100), (1.0, 1.0))
-denoised_reco_lus = obj.tv_reconstruction_gen(obj.tv_l2_reconstruction, 0, raw_data, coils, sp_mask_lus/pdf_var_lus, (10, 100), (1.0, 1.0))
-denoised_reco_un = obj.tv_reconstruction_gen(obj.tv_l2_reconstruction, 0, raw_data, coils, sp_mask_un/0.5, (10, 100), (1.0, 1.0))
+#for tv: first argument in method
+#obj.tv_l2_reconstruction_gen
+#denoised_reco_own = obj.tv_l2_reconstruction_gen(obj.tv_l2_reconstruction_gen, 0, raw_data, coils, sp_mask_own, (10, 100), (1.0, 1.0))
 
+
+denoised_reco_own = obj.tgv2_reconstruction_gen(0, raw_data, coils, sp_mask_own, (10, 2,1, 100), (1.0, 1.0))
+denoised_reco_lus = obj.tgv2_reconstruction_gen(0, raw_data, coils, sp_mask_lus, (10, 2,1, 100), (1.0, 1.0))
+denoised_reco_un = obj.tgv2_reconstruction_gen(0, raw_data, coils, sp_mask_un, (10, 2,1, 100), (1.0, 1.0))
+
+print("own mask: ", str(np.count_nonzero(sp_mask_own)/len(np.ravel(sp_mask_own))))
+print("lustig mask: ", str(np.count_nonzero(sp_mask_lus)/len(np.ravel(sp_mask_lus))))
+print("unified mask: ", str(np.count_nonzero(sp_mask_un)/len(np.ravel(sp_mask_un))))
 
 
 #np.save('denoise_u_veclist', denoised_reco)
@@ -162,6 +169,8 @@ plt.imshow(pdf_var_lus, cmap='gray')
 plt.subplot(2,3,6)
 plt.imshow(0.5*np.ones(pdf_var_lus.shape), cmap='gray')
 plt.show()
+
+
 
 
 # plt.figure()

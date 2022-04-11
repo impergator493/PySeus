@@ -176,15 +176,15 @@ class TGV_Denoise():
         v_old = np.zeros(3*L*M*N)
 
         # initialize dual variables
-        p_new = np.zeros(3*L*M*N)
-        q_new = np.zeros(9*L*M*N)
+        p_old = np.zeros(3*L*M*N)
+        q_old = np.zeros(9*L*M*N)
 
         # primal and dual step size
         tau_old = self.lip_inv
         sigma = self.lip_inv
 
         x_vec_old = np.concatenate([u_old, v_old])
-        y_vec_old = np.concatenate([p_new, q_new])
+        y_vec_old = np.concatenate([p_old, q_old])
 
         
         # @ is matrix multiplication of 2 variables
@@ -214,7 +214,7 @@ class TGV_Denoise():
 
 
                 print("Denoise TGV: calculate norm")
-                LS = (np.sqrt(beta)*tau_new*(np.linalg.norm(k.T@y_vec_new - k.T@y_vec_old)))
+                LS = np.sqrt(beta)*tau_new*(np.linalg.norm(k.T@y_vec_new - k.T@y_vec_old))
                 RS = delta*(np.linalg.norm(y_vec_new - y_vec_old))
                 print("LS is:", LS, "and of type:", type(LS))
                 print("RS is:", RS, "and of type:", type(RS))

@@ -1,5 +1,6 @@
 # Assignment from Image Processing, taken from there
 
+from re import U
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy
@@ -140,78 +141,97 @@ class TV_Denoise():
         # if 2dim noisy data make it a 3D array, if 3D just let it be
         
         # inverted spacing is used so that h* = 0 is an infinite spacing
+        # Parameters
+        beta = 1
+        theta = 1
+        mu = 0.5
+        delta = 0.5
 
-        f = img_noisy
 
-        L, M, N = f.shape
+        L, M, N = img_noisy.shape
         img = img_noisy.reshape(L*M*N)
-
-        theta = 1.0
-
 
         # make operators
         k = self.make_K(L,M,N)
 
         # initialize primal variables
-        u_vec = np.zeros(L*M*N)
+        u_old = np.zeros(L*M*N)
 
         # initialize dual variables
-        p_vec = np.zeros(3*L*M*N)
+        p_old = np.zeros(3*L*M*N)
 
         # primal and dual step size
-        tau = self.lip_inv
+        tau_old = self.lip_inv
         sigma = self.lip_inv
-
-        u_bar = img
     
 
-        
         # @ is matrix multiplication of 2 variables
 
         for it in range(0, iterations):
             # To calculate the data term projection you can use:
             # prox_sum_l1(x, f, tau, Wis)
             # where x is the parameter of the projection function i.e. u^(n+(1/2))
-            p_vec = p_vec + sigma*k@(u_bar)            
-            p_vec = np.ravel(self.proj_ball(p_vec[0:3*L*M*N].reshape(3, L*M*N)))
+            u_temp = u_old - tau_old * k.T @ p_old
+            u_new = self.prox_G_L1(u_temp, img, tau_old, lambd)
+
+
+            tau_new = tau_old*(1+theta)**0.5
+            print("new tau")
+            print("Tau_n:", tau_new)
             
-            u_old = u_vec
+            while True:
+                theta = tau_new/tau_old
+                sigma = beta * tau_new
+                u_bar = u_new + theta * (u_new - u_old)
 
-            u_vec = u_vec - tau * k.T @ p_vec
-            u_vec = self.prox_G_L1(u_vec, img, tau, lambd)
+                p_temp = p_old + sigma*k@(u_bar)            
+                p_new = np.ravel(self.proj_ball(p_temp[0:3*L*M*N].reshape(3, L*M*N)))
+                
+                print("calculate norm")
+                LS = np.sqrt(beta)*tau_new*(np.linalg.norm(k.T@p_new - k.T@p_old))
+                RS = delta*(np.linalg.norm(p_new - p_old))
+                print("LS is:", LS)
+                print("RS is:", RS)
+                if  LS <= RS:
+                    print("Update tau!")
+                    break
+                else: tau_new = tau_new * mu
+                print("reduce tau")
+                print("Tau_n:", tau_new)
 
-            u_bar = u_vec - theta * (u_vec - u_old)
+            u_old = u_new
+            p_old = p_new
+            tau_old = tau_new
             
-
-        u_bar = u_bar.reshape(L,M,N)
+        u_new = u_new.reshape(L,M,N)
         
-        return u_bar
+        return u_new
 
     def tv_denoising_huberROF(self,img_noisy, lambd, iterations, alpha):
 
-        f = img_noisy
+        # Parameters
+        beta = 1
+        theta = 1
+        mu = 0.5
+        delta = 0.5
 
-        L, M, N = f.shape
+
+        L, M, N = img_noisy.shape
         img = img_noisy.reshape(L*M*N)
-
-        theta = 1.0
 
 
         # make operators
         k = self.make_K(L,M,N)
 
         # initialize primal variables
-        u_vec = np.zeros(L*M*N)
+        u_old = np.zeros(L*M*N)
 
         # initialize dual variables
-        p_vec = np.zeros(3*L*M*N)
+        p_old = np.zeros(3*L*M*N)
 
         # primal and dual step size
-        tau = self.lip_inv
-        sigma = self.lip_inv
-
-        u_bar = img
-    
+        tau_old = self.lip_inv
+        sigma = self.lip_inv    
 
         
         # @ is matrix multiplication of 2 variables
@@ -221,46 +241,66 @@ class TV_Denoise():
             # prox_sum_l1(x, f, tau, Wis)
             # where x is the parameter of the projection function i.e. u^(n+(1/2))
             
-            divisor = (1 + sigma * alpha)
-            p_vec = p_vec + sigma*k@(u_bar)            
-            p_vec = np.ravel(self.proj_ball(p_vec[0:3*L*M*N].reshape(3, L*M*N)/divisor))
-            
-            u_old = u_vec
+            u_temp = u_old - tau_old * k.T @ p_old
+            u_new = self.prox_G_L2(u_temp, img, tau_old, lambd)
 
-            u_vec = u_vec - tau * k.T @ p_vec
-            u_vec = self.prox_G_L2(u_vec, img, tau, lambd)
+            tau_new = tau_old*(1+theta)**0.5
+            print("new tau")
+            print("Tau_n:", tau_new)
 
-            u_bar = u_vec - theta * (u_vec - u_old)
-            
+            while True:
+                theta = tau_new/tau_old
+                sigma = beta * tau_new
+                u_bar = u_new + theta * (u_new - u_old)
 
-        u_bar = u_bar.reshape(L,M,N)
+                divisor = (1 + sigma * alpha)
+                p_temp = p_old + sigma*k@(u_bar)            
+                p_new = np.ravel(self.proj_ball(p_temp[0:3*L*M*N].reshape(3, L*M*N)/divisor))
+                
+                print("calculate norm")
+                LS = np.sqrt(beta)*tau_new*(np.linalg.norm(k.T@p_new - k.T@p_old))
+                RS = delta*(np.linalg.norm(p_new - p_old))
+                print("LS is:", LS)
+                print("RS is:", RS)
+                if  LS <= RS:
+                    print("Update tau!")
+                    break
+                else: tau_new = tau_new * mu
+                print("reduce tau")
+                print("Tau_n:", tau_new)
+
+            u_old = u_new
+            p_old = p_new
+            tau_old = tau_new
+
+        u_new = u_new.reshape(L,M,N)
         
-        return u_bar
+        return u_new
 
     def tv_denoising_L2(self,img_noisy, lambd, iterations):
 
-        f = img_noisy
+        # Parameters
+        beta = 1
+        theta = 1
+        mu = 0.5
+        delta = 0.5
 
-        L, M, N = f.shape
+        L, M, N = img_noisy.shape
         img = img_noisy.reshape(L*M*N)
-
-        theta = 1.0
 
 
         # make operators
         k = self.make_K(L,M,N)
 
         # initialize primal variables
-        u_vec = np.zeros(L*M*N)
+        u_old = np.zeros(L*M*N)
 
         # initialize dual variables
-        p_vec = np.zeros(3*L*M*N)
+        p_old = np.zeros(3*L*M*N)
 
         # primal and dual step size
-        tau = self.lip_inv
+        tau_old = self.lip_inv
         sigma = self.lip_inv
-
-        u_bar = img
     
 
         
@@ -270,18 +310,37 @@ class TV_Denoise():
             # To calculate the data term projection you can use:
             # prox_sum_l1(x, f, tau, Wis)
             # where x is the parameter of the projection function i.e. u^(n+(1/2))
-            
-            p_vec = p_vec + sigma*k@(u_bar)            
-            p_vec = np.ravel(self.proj_ball(p_vec[0:3*L*M*N].reshape(3, L*M*N)))
-            
-            u_old = u_vec
+            u_temp = u_old - tau_old * k.T @ p_old
+            u_new = self.prox_G_L2(u_temp, img, tau_old, lambd)
 
-            u_vec = u_vec - tau * k.T @ p_vec
-            u_vec = self.prox_G_L2(u_vec, img, tau, lambd)
+            tau_new = tau_old*(1+theta)**0.5
+            print("new tau")
+            print("Tau_n:", tau_new)
 
-            u_bar = u_vec - theta * (u_vec - u_old)
+            while True:
+                theta = tau_new/tau_old
+                sigma = beta * tau_new
+                u_bar = u_new + theta * (u_new - u_old)
+
+                p_temp = p_old + sigma*k@(u_bar)            
+                p_new = np.ravel(self.proj_ball(p_temp[0:3*L*M*N].reshape(3, L*M*N)))
             
+                print("calculate norm")
+                LS = np.sqrt(beta)*tau_new*(np.linalg.norm(k.T@p_new - k.T@p_old))
+                RS = delta*(np.linalg.norm(p_new - p_old))
+                print("LS is:", LS)
+                print("RS is:", RS)
+                if  LS <= RS:
+                    print("Update tau!")
+                    break
+                else: tau_new = tau_new * mu
+                print("reduce tau")
+                print("Tau_n:", tau_new)
 
-        u_bar = u_bar.reshape(L,M,N)
+            u_old = u_new
+            p_old = p_new
+            tau_old = tau_new
+
+        u_new = u_new.reshape(L,M,N)
         
-        return u_bar
+        return u_new

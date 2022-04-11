@@ -164,11 +164,12 @@ class TGV_Reco():
         beta = 1
         theta = 1
         mu = 0.5
-        delta = 0.98
+        delta = 0.5
 
         # d is the variable which contains all the k-space data for the sample for all coils
         # and has dimension Nc*Nz*Ny*Nx
-        d = img_kspace
+        # normed to 1, can be removed to see if it changes anything
+        d = img_kspace/np.linalg.norm(img_kspace)
 
         # C is number of coils, L,M,N are the length of the 3D dimensions
         C, L, M, N = d.shape
@@ -177,25 +178,24 @@ class TGV_Reco():
         k = self.make_K(L,M,N)
        
         # initialize primal variables - numpy arrays shape (L*M*N, )
-        u = np.zeros(L*M*N, dtype=np.complex128)
-        v = np.zeros(3*L*M*N, dtype=np.complex128)
+        u_old = np.zeros(L*M*N, dtype=np.complex128)
+        v_old = np.zeros(3*L*M*N, dtype=np.complex128)
 
         #@TODO change p,q to z1 z2
         # initialize dual variables
-        p = np.zeros(3*L*M*N, dtype=np.complex128)
-        q = np.zeros(9*L*M*N, dtype=np.complex128)
-        r = np.zeros(C*L*M*N, dtype=np.complex128)
+        p_old = np.zeros(3*L*M*N, dtype=np.complex128)
+        q_old = np.zeros(9*L*M*N, dtype=np.complex128)
+        r_old = np.zeros(C*L*M*N, dtype=np.complex128)
 
 
         # primal and dual step size
-        tau = self.lip_inv
+        tau_old = self.lip_inv
         sigma = self.lip_inv
 
-        tau_old = tau
-        x_old = np.concatenate([u, v])
-        pq_old = np.concatenate([p, q])
+        x_old = np.concatenate([u_old, v_old])
+        pq_old = np.concatenate([p_old, q_old])
         y_old = np.zeros((3+9+C)*L*M*N, dtype=np.complex128)
-        kTy_old = np.zeros(L*M*N, dtype=np.complex128)
+        kTy_old = np.zeros_like(x_old, dtype=np.complex128)
 
             
 
@@ -210,10 +210,10 @@ class TGV_Reco():
             # where x is the parameter of the projection function i.e. u^(n+(1/2))
             
             #add result of DAHr only to first L*M*N entries, because they belong to the u_vec , v_vec should not be influenced
-            Aconj_r[0:L*M*N] = np.ravel(self.op_A_conj(r.reshape(C,L,M,N), sens_coils, sparse_mask))
+            Aconj_r[0:L*M*N] = np.ravel(self.op_A_conj(r_old.reshape(C,L,M,N), sens_coils, sparse_mask))
             
             # prox for u not necessary
-            x_new = x_old - tau_n * (k.T @ pq_old + Aconj_r)
+            x_new = x_old - tau_old * (k.T @ pq_old + Aconj_r)
             #u = x_new[0:L*M*N]
 
             tau_new = tau_old*(1+theta)**0.5
@@ -228,34 +228,37 @@ class TGV_Reco():
                 pq_temp = pq_old + sigma*k@(x_bar)
                 p = np.ravel(self.proj_ball(pq_temp[0:3*L*M*N].reshape(3, L*M*N), alpha1))
                 q = np.ravel(self.proj_ball(pq_temp[3*L*M*N:12*L*M*N].reshape(9, L*M*N), alpha0))
-                pq_old = np.concatenate([p, q])
-                r_temp = r + np.ravel(sigma*(self.op_A(x_bar[0:L*M*N].reshape(L,M,N), sens_coils, sparse_mask)-d))
-                r = np.ravel(self.prox_F(r_temp, sigma, lambd))
+                pq_new = np.concatenate([p, q])
+                r_temp = r_old + np.ravel(sigma*(self.op_A(x_bar[0:L*M*N].reshape(L,M,N), sens_coils, sparse_mask)-d))
+                r_new = np.ravel(self.prox_F(r_temp, sigma, lambd))
 
-                Aconj_r[0:L*M*N] = np.ravel(self.op_A_conj(r.reshape(C,L,M,N), sens_coils, sparse_mask))
-                kTy_new = k.T@pq_old + Aconj_r
-                y_new = np.concatenate([p, r])
-
-
-                y_new = np.concatenate([pq_old, r])
-                Aconj_r[0:L*M*N] = np.ravel(self.op_A_conj(r.reshape(C,L,M,N), sens_coils, sparse_mask))
-                ky_new = k.T@pq_old + Aconj_r
+                Aconj_r[0:L*M*N] = np.ravel(self.op_A_conj(r_new.reshape(C,L,M,N), sens_coils, sparse_mask))
+                kTy_new = k.T@pq_new + Aconj_r
+                y_new = np.concatenate([pq_new, r_new])
 
                 print("TGV")
                 print("calculate norm")
-                LS = np.sqrt(beta)*tau_n*(np.linalg.norm(kTy_new - kTy_old))
+                LS = np.sqrt(beta)*tau_new*(np.linalg.norm(kTy_new - kTy_old))
                 RS = delta*(np.linalg.norm(y_new - y_old))
-                print("LS is:", LS, "and of type:", type(LS))
-                print("RS is:", RS, "and of type:", type(RS))
+                print("LS is:", LS)
+                print("RS is:", RS)
                 if  LS <= RS:
                     print("Update tau!")
                     break
-                else: tau_n = tau_n * mu
+                else: tau_new = tau_new * mu
                 print("reduce tau")
-                print("Tau_n:", tau_n)
+                print("Tau_n:", tau_new)
 
-        u = u.reshape(L,M,N)
+            # update variables
+            x_old = x_new
+            pq_old = pq_new
+            r_old = r_new
+            y_old = y_new
+            kTy_old = kTy_new
+            tau_old = tau_new
+
+        u_new = x_new[0:L*M*N].reshape(L,M,N)
            
-        return u
+        return u_new
 
 

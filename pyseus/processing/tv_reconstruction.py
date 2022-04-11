@@ -198,7 +198,7 @@ class TV_Reco():
         sigma = self.lip_inv
 
         y_old = np.zeros((3+C)*L*M*N, dtype=np.complex128)
-        kTy_old = np.zeros(L*M*N, dtype=np.complex128)
+        kTy_old = np.zeros(u_old, dtype=np.complex128)
 
 
         # temp vector for A* * r
@@ -242,10 +242,10 @@ class TV_Reco():
                 y_new = np.concatenate([p_new, r_new])
 
                 print("calculate norm")
-                LS = (np.sqrt(beta)*tau_new*(np.linalg.norm(kTy_new - kTy_old)))
+                LS = np.sqrt(beta)*tau_new*(np.linalg.norm(kTy_new - kTy_old))
                 RS = delta*(np.linalg.norm(y_new - y_old))
-                print("LS is:", LS, "and of type:", type(LS))
-                print("RS is:", RS, "and of type:", type(RS))
+                print("LS is:", LS)
+                print("RS is:", RS)
                 if  LS <= RS:
                     print("Break Linesearch")
                     break
