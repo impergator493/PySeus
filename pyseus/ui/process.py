@@ -6,10 +6,9 @@ from pyseus.processing.tv_reconstruction import TV_Reco
 
 from ..settings import ProcessType, ProcessSelDataType, ProcessRegType, DataType
 
-from pyseus.processing.threading_process_old import ProcessThread
 from pyseus.processing.thread_worker import Worker
 from pyseus.processing.tv_denoising import TV_Denoise
-from pyseus.processing.tgv_denoising_LS import TGV_Denoise
+from pyseus.processing.tgv_denoising import TGV_Denoise
 from pyseus.processing.tgv_reconstruction import TGV_Reco
 from pyseus.modes.grayscale import Grayscale
 from PySide2.QtCore import Qt, QThread
@@ -50,7 +49,6 @@ class ProcessDialog(QDialog):
         self.grp_data_sel.addButton(self.btn_all_slices_2D,ProcessSelDataType.WHOLE_SCAN_2D)
         self.grp_data_sel.addButton(self.btn_all_slices_3D,ProcessSelDataType.WHOLE_SCAN_3D)
         self.chbx_coil = QCheckBox("Use coil sensitivities")
-        self.chbx_spmask = QCheckBox("Use undersampling sparse mask")
 
         
         # subgroup of radio buttons to dataset selection
@@ -70,7 +68,6 @@ class ProcessDialog(QDialog):
         if self.proc_type == ProcessType.RECONSTRUCTION:
             vlayout_sel.addWidget(self.btn_all_slices_3D)
             vlayout_sel.addWidget(self.chbx_coil)
-            vlayout_sel.addWidget(self.chbx_spmask)
         grp_box_sel.setLayout(vlayout_sel)
 
         if self.proc_type == ProcessType.DENOISING:
@@ -214,9 +211,8 @@ class ProcessDialog(QDialog):
         tv_type = ProcessRegType(self.grp_tv_type.checkedId())
 
         use_coilmap = self.chbx_coil.isChecked()
-        use_spmask = self.chbx_spmask.isChecked()
 
-        self.window_processed.start_calculation(alpha, alpha0, alpha1, lambd, iterations, h_iso_inv, h_z_inv, dataset_type,tv_type, use_coilmap, use_spmask)
+        self.window_processed.start_calculation(alpha, alpha0, alpha1, lambd, iterations, h_iso_inv, h_z_inv, dataset_type,tv_type, use_coilmap)
 
 
 class ProcessedWindow(QDialog):
@@ -276,7 +272,7 @@ class ProcessedWindow(QDialog):
        
     
 
-    def start_calculation(self,alpha, alpha0, alpha1, lambd,iterations, hiso_inv, hz_inv, dataset_type, tv_type, use_coilmap, use_spmask):
+    def start_calculation(self,alpha, alpha0, alpha1, lambd,iterations, hiso_inv, hz_inv, dataset_type, tv_type, use_coilmap):
 
         self.dataset_type = dataset_type
 
@@ -334,17 +330,13 @@ class ProcessedWindow(QDialog):
             elif self.dataset_type == ProcessSelDataType.SLICE_2D:
                 dataset_kspace = self.app.dataset.get_reco_pixeldata(scan_id, slice_id)#dataset_noisy = self.app.dataset.get_pixeldata(self.app.get_slice_id())
 
-            sparse_mask = numpy.ones_like(dataset_kspace)
             data_coils = numpy.ones_like(dataset_kspace)
 
-            # if no sparse mask given, sample is fully sampled and the whole array is 1
-            if use_spmask:
-                pass
-                # add function to import sparse mask or to create one
+
             # if no sensitivity map is given, the whole array contains 1
             if use_coilmap:
                 if self.dataset_type == ProcessSelDataType.WHOLE_SCAN_2D or self.dataset_type == ProcessSelDataType.WHOLE_SCAN_3D:
-                    #TODO Remove selection for specific slices later again
+                    #@TODO Remove selection for specific slices later again
                     data_coils = self.app.dataset.get_coil_data(-1)[:,69:75,:,:]
                 elif self.dataset_type == ProcessSelDataType.SLICE_2D:
                     data_coils = self.app.dataset.get_coil_data(slice_id)
@@ -364,7 +356,7 @@ class ProcessedWindow(QDialog):
 
             if self.thread == None:
                 self.thread = QThread()
-                self.worker = Worker(tv_class, tv_type_func, dataset_type, dataset_kspace, params, spac, sparse_mask, data_coils)
+                self.worker = Worker(tv_class, tv_type_func, dataset_type, dataset_kspace, params, spac, data_coils)
                 self.worker.moveToThread(self.thread)
                 self.thread.started.connect(self.worker.run)
                 self.worker.output.connect(self.calculation_callback)
@@ -382,15 +374,9 @@ class ProcessedWindow(QDialog):
         
     def display_image(self, image):
         
-
-        # @TODO
-        # shortcut, thats not a good solution
-        # should the original grayscale object be used with temporary window
-        # or a new grayscale objecte be generated which is independent?
         self.mode.temporary_window(image)
         pixmap = self.mode.get_pixmap(image)
         self.view.set(pixmap)
-        #self.setGeometry(600,300,600,600)
         self.show()
         screen_size = QDesktopWidget().screenGeometry()
         self.resize(screen_size.width()*0.3, screen_size.height()*0.3)

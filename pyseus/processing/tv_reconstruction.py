@@ -22,7 +22,7 @@ class TV_Reco():
          # Lipschitz constant of K, according to papers ok, aber beim probieren ist es eigentlich zu klein.
         #self.lip_inv = np.sqrt((2*(1/self.h_inv)**2)/(16+(1/self.h_inv)**2+np.sqrt(32*(1/self.h_inv)**2+(1/self.h_inv)**4)))
         #self.lip_inv = np.sqrt(1/64)
-        self.lip_inv = 100
+        self.lip_inv = 10
 
         # dimension for which the fft and ifft should be calculated, standard is 2D
         self.fft_dim = (-2,-1)
@@ -118,10 +118,13 @@ class TV_Reco():
 
    # if its a big dataset, a lot of RAM is needed because all the raw data to process will be 
     # stored in the RAM
-    def tv_reconstruction_gen(self, func_reco, dataset_type, data_raw, data_coils, sparse_mask, params, spac):
+    def tv_reconstruction_gen(self, func_reco, dataset_type, data_raw, data_coils, params, spac):
 
         self.h_inv = spac[0]
         self.hz_inv = spac[1]
+
+        sparse_mask = (data_raw!=0)
+
 
         if dataset_type == ProcessSelDataType.SLICE_2D:
             # Because of Coil data, correct slice has to be select with L=1 already when method is called
@@ -159,21 +162,24 @@ class TV_Reco():
         @return: tuple of u with shape MxN and v with shape 2xMxN
         """
 
-        # Check if Coils are adjoint
-        sumsqrC = np.sum(sens_coils*np.conj(sens_coils),axis=0)
-        sens_coils /= np.sqrt(sumsqrC)
+        # Check if Coils are adjoint, not necessary, they are adjoint and normed to one
+        # sumsqrC = np.sum(sens_coils*np.conj(sens_coils),axis=0)
+        # print("sum of coils squared" + str(sum(sumsqrC.ravel())))
+        # print("shape of coils: " + str(sens_coils.shape))
+        # sens_coils /= np.sqrt(sumsqrC)
 
 
         # Parameters
         beta = 1
         theta = 1
         mu = 0.5
-        delta = 0.5
+        delta = 0.99
 
         # d is the variable which contains all the k-space data for the sample for all coils
         # and has dimension Nc*Nz*Ny*Nx
-        d = img_kspace/np.linalg.norm(img_kspace)
-
+        #d = img_kspace/np.linalg.norm(img_kspace)
+        #print("norm of kspace" + str(np.linalg.norm(img_kspace)))
+        d = img_kspace
     
 
         # C is number of coils, L,M,N are the length of the 3D dimensions
@@ -198,13 +204,12 @@ class TV_Reco():
         sigma = self.lip_inv
 
         y_old = np.zeros((3+C)*L*M*N, dtype=np.complex128)
-        kTy_old = np.zeros(u_old, dtype=np.complex128)
+        kTy_old = np.zeros_like(u_old, dtype=np.complex128)
 
 
         # temp vector for A* * r
         Aconj_r = np.zeros_like(u_old, dtype=np.complex128)
 
-        # @ is matrix multiplication of 2 variables
 
         for it in range(0, iterations):
             # To calculate the data term projection you can use:

@@ -81,7 +81,7 @@ class TGV_Reco():
         @return: projection result either 2xMN or 4xMN
         """
         norm = np.linalg.norm(Y, axis=0)
-        projection = Y / np.maximum(alpha, norm)
+        projection = Y / np.maximum(1, norm/alpha)
     
         return projection
 
@@ -118,10 +118,12 @@ class TGV_Reco():
 
    # if its a big dataset, a lot of RAM is needed because all the raw data to process will be 
     # stored in the RAM
-    def tgv2_reconstruction_gen(self, dataset_type, data_raw, data_coils, sparse_mask, params, spac):
+    def tgv2_reconstruction_gen(self, dataset_type, data_raw, data_coils, params, spac):
 
         self.h_inv = spac[0]
         self.hz_inv = spac[1]
+
+        sparse_mask = (data_raw!=0)
 
         if dataset_type == ProcessSelDataType.SLICE_2D:
             # Because of Coil data, correct slice has to be select with L=1 already when method is called
@@ -164,7 +166,7 @@ class TGV_Reco():
         beta = 1
         theta = 1
         mu = 0.5
-        delta = 0.5
+        delta = 0.99
 
         # d is the variable which contains all the k-space data for the sample for all coils
         # and has dimension Nc*Nz*Ny*Nx

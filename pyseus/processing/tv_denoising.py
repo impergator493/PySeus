@@ -18,7 +18,8 @@ class TV_Denoise():
         self.hz_inv = 1.0
 
          # Lipschitz constant of K, according to knoll paper TGV reco and denoising, with iso spacing for x and y
-        self.lip_inv = np.sqrt((2*(1/self.h_inv)**2)/(16+(1/self.h_inv)**2+np.sqrt(32*(1/self.h_inv)**2+(1/self.h_inv)**4)))
+        #self.lip_inv = np.sqrt((2*(1/self.h_inv)**2)/(16+(1/self.h_inv)**2+np.sqrt(32*(1/self.h_inv)**2+(1/self.h_inv)**4)))
+        self.lip_inv = 10
     
 
     def _make_nabla(self,L, M, N):
@@ -145,7 +146,7 @@ class TV_Denoise():
         beta = 1
         theta = 1
         mu = 0.5
-        delta = 0.5
+        delta = 0.99
 
 
         L, M, N = img_noisy.shape
@@ -213,7 +214,7 @@ class TV_Denoise():
         beta = 1
         theta = 1
         mu = 0.5
-        delta = 0.5
+        delta = 0.99
 
 
         L, M, N = img_noisy.shape
@@ -283,7 +284,7 @@ class TV_Denoise():
         beta = 1
         theta = 1
         mu = 0.5
-        delta = 0.5
+        delta = 0.99
 
         L, M, N = img_noisy.shape
         img = img_noisy.reshape(L*M*N)

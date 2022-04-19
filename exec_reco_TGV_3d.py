@@ -8,15 +8,20 @@ import matplotlib.pyplot as plt
 import scipy.io
 
 # f1 = h5py.File("..\\..\\03_Daten\\fourier_data_reconstruction\\prob01.h5")
-f1 = h5py.File("..\\..\\03_Daten\\fourier_data_reconstruction\\VFA_test_cart.h5")      
+#mit dem folgenden file gehts sicher
+#f1 = h5py.File("..\\..\\03_Daten\\fourier_data_reconstruction\\VFA_test_cart.h5")      
+f1 = h5py.File("..\\..\\03_Daten\\Noise_generation\\Mario_Master\\VFA_img_noise=0.1_alpha=9_fft_under60_noise.h5")      
 print('\n')
 print("Keys: ", list(f1.keys()))
 print("Attributes: ", dict(f1.attrs))
 # Inhalt der Attribute
 
-
-real_dat = f1['real_dat'][0,:,100:101,:,:]
-imag_dat = f1['imag_dat'][0,:,100:101,:,:]
+# für VFA_test_cart
+#real_dat = f1['real_dat'][0,:,100:101,:,:]
+#imag_dat = f1['imag_dat'][0,:,100:101,:,:]
+# für eigene datensets
+real_dat = f1['real_dat'][0]
+imag_dat = f1['imag_dat'][0]
 raw_data = real_dat + imag_dat*(1j)
 coils = f1['Coils'][:,100:101,:,:]
 #coils = np.ones_like(raw_data)
@@ -112,17 +117,19 @@ img_sp_own = (np.sum(img_sp_own**2,axis=0))**0.5
 
 ########
 
+obj = TV_Reco()
 #obj = TGV_Reco()
-obj = TGV_Reco()
 
 #for tv: first argument in method
 #obj.tv_l2_reconstruction_gen
-#denoised_reco_own = obj.tv_l2_reconstruction_gen(obj.tv_l2_reconstruction_gen, 0, raw_data, coils, sp_mask_own, (10, 100), (1.0, 1.0))
+denoised_reco_own = obj.tv_reconstruction_gen(obj.tv_l2_reconstruction, 0, raw_data, coils, (10, 3), (1.0, 1.0))
 
 
-denoised_reco_own = obj.tgv2_reconstruction_gen(0, raw_data, coils, sp_mask_own, (10, 2,1, 100), (1.0, 1.0))
-denoised_reco_lus = obj.tgv2_reconstruction_gen(0, raw_data, coils, sp_mask_lus, (10, 2,1, 100), (1.0, 1.0))
-denoised_reco_un = obj.tgv2_reconstruction_gen(0, raw_data, coils, sp_mask_un, (10, 2,1, 100), (1.0, 1.0))
+
+#TGV
+#denoised_reco_own = obj.tgv2_reconstruction_gen(0, raw_data, coils, sp_mask_own, (10, 2,1, 100), (1.0, 1.0))
+#denoised_reco_lus = obj.tgv2_reconstruction_gen(0, raw_data, coils, sp_mask_lus, (10, 2,1, 100), (1.0, 1.0))
+#denoised_reco_un = obj.tgv2_reconstruction_gen(0, raw_data, coils, sp_mask_un, (10, 2,1, 100), (1.0, 1.0))
 
 print("own mask: ", str(np.count_nonzero(sp_mask_own)/len(np.ravel(sp_mask_own))))
 print("lustig mask: ", str(np.count_nonzero(sp_mask_lus)/len(np.ravel(sp_mask_lus))))
