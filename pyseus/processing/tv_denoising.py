@@ -177,8 +177,8 @@ class TV_Denoise():
 
 
             tau_new = tau_old*(1+theta)**0.5
-            print("new tau")
-            print("Tau_n:", tau_new)
+            #print("new tau")
+            #print("Tau_n:", tau_new)
             
             while True:
                 theta = tau_new/tau_old
@@ -188,17 +188,17 @@ class TV_Denoise():
                 p_temp = p_old + sigma*k@(u_bar)            
                 p_new = np.ravel(self.proj_ball(p_temp[0:3*L*M*N].reshape(3, L*M*N)))
                 
-                print("calculate norm")
+                #print("calculate norm")
                 LS = np.sqrt(beta)*tau_new*(np.linalg.norm(k.T@p_new - k.T@p_old))
                 RS = delta*(np.linalg.norm(p_new - p_old))
-                print("LS is:", LS)
-                print("RS is:", RS)
+                #print("LS is:", LS)
+                #print("RS is:", RS)
                 if  LS <= RS:
-                    print("Update tau!")
+                    #print("Update tau!")
                     break
                 else: tau_new = tau_new * mu
-                print("reduce tau")
-                print("Tau_n:", tau_new)
+                #print("reduce tau")
+                #print("Tau_n:", tau_new)
 
             u_old = u_new
             p_old = p_new
@@ -246,8 +246,8 @@ class TV_Denoise():
             u_new = self.prox_G_L2(u_temp, img, tau_old, lambd)
 
             tau_new = tau_old*(1+theta)**0.5
-            print("new tau")
-            print("Tau_n:", tau_new)
+            #print("new tau")
+            #print("Tau_n:", tau_new)
 
             while True:
                 theta = tau_new/tau_old
@@ -258,17 +258,17 @@ class TV_Denoise():
                 p_temp = p_old + sigma*k@(u_bar)            
                 p_new = np.ravel(self.proj_ball(p_temp[0:3*L*M*N].reshape(3, L*M*N)/divisor))
                 
-                print("calculate norm")
+                #print("calculate norm")
                 LS = np.sqrt(beta)*tau_new*(np.linalg.norm(k.T@p_new - k.T@p_old))
                 RS = delta*(np.linalg.norm(p_new - p_old))
-                print("LS is:", LS)
-                print("RS is:", RS)
+                #print("LS is:", LS)
+                #print("RS is:", RS)
                 if  LS <= RS:
-                    print("Update tau!")
+                    #print("Update tau!")
                     break
                 else: tau_new = tau_new * mu
-                print("reduce tau")
-                print("Tau_n:", tau_new)
+                #print("reduce tau")
+                #print("Tau_n:", tau_new)
 
             u_old = u_new
             p_old = p_new
@@ -308,6 +308,7 @@ class TV_Denoise():
         # @ is matrix multiplication of 2 variables
 
         for it in range(0, iterations):
+            print("iterations: " + str(it))           
             # To calculate the data term projection you can use:
             # prox_sum_l1(x, f, tau, Wis)
             # where x is the parameter of the projection function i.e. u^(n+(1/2))
@@ -315,8 +316,8 @@ class TV_Denoise():
             u_new = self.prox_G_L2(u_temp, img, tau_old, lambd)
 
             tau_new = tau_old*(1+theta)**0.5
-            print("new tau")
-            print("Tau_n:", tau_new)
+            #print("new tau")
+            #print("Tau_n:", tau_new)
 
             while True:
                 theta = tau_new/tau_old
@@ -326,17 +327,17 @@ class TV_Denoise():
                 p_temp = p_old + sigma*k@(u_bar)            
                 p_new = np.ravel(self.proj_ball(p_temp[0:3*L*M*N].reshape(3, L*M*N)))
             
-                print("calculate norm")
+                #print("calculate norm")
                 LS = np.sqrt(beta)*tau_new*(np.linalg.norm(k.T@p_new - k.T@p_old))
                 RS = delta*(np.linalg.norm(p_new - p_old))
-                print("LS is:", LS)
-                print("RS is:", RS)
+                #print("LS is:", LS)
+                #print("RS is:", RS)
                 if  LS <= RS:
-                    print("Update tau!")
+                    #print("Update tau!")
                     break
                 else: tau_new = tau_new * mu
-                print("reduce tau")
-                print("Tau_n:", tau_new)
+                #print("reduce tau")
+                #print("Tau_n:", tau_new)
 
             u_old = u_new
             p_old = p_new

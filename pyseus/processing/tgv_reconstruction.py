@@ -210,7 +210,8 @@ class TGV_Reco():
             # To calculate the data term projection you can use:
             # prox_sum_l1(x, f, tau, Wis)
             # where x is the parameter of the projection function i.e. u^(n+(1/2))
-            
+            print("iterations: " + str(it))
+
             #add result of DAHr only to first L*M*N entries, because they belong to the u_vec , v_vec should not be influenced
             Aconj_r[0:L*M*N] = np.ravel(self.op_A_conj(r_old.reshape(C,L,M,N), sens_coils, sparse_mask))
             
@@ -219,8 +220,8 @@ class TGV_Reco():
             #u = x_new[0:L*M*N]
 
             tau_new = tau_old*(1+theta)**0.5
-            print("new tau")
-            print("Tau_n:", tau_new)
+            #print("new tau")
+            #print("Tau_n:", tau_new)
             
             while True:
                 theta = tau_new/tau_old
@@ -238,18 +239,18 @@ class TGV_Reco():
                 kTy_new = k.T@pq_new + Aconj_r
                 y_new = np.concatenate([pq_new, r_new])
 
-                print("TGV")
-                print("calculate norm")
+                #print("TGV")
+                #print("calculate norm")
                 LS = np.sqrt(beta)*tau_new*(np.linalg.norm(kTy_new - kTy_old))
                 RS = delta*(np.linalg.norm(y_new - y_old))
-                print("LS is:", LS)
-                print("RS is:", RS)
+                #print("LS is:", LS)
+                #print("RS is:", RS)
                 if  LS <= RS:
-                    print("Update tau!")
+                    #print("Update tau!")
                     break
                 else: tau_new = tau_new * mu
-                print("reduce tau")
-                print("Tau_n:", tau_new)
+                #print("reduce tau")
+                #print("Tau_n:", tau_new)
 
             # update variables
             x_old = x_new

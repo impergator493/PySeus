@@ -212,6 +212,7 @@ class TV_Reco():
 
 
         for it in range(0, iterations):
+            print("iterations: " + str(it))
             # To calculate the data term projection you can use:
             # prox_sum_l1(x, f, tau, Wis)
             # where x is the parameter of the projection function i.e. u^(n+(1/2))
@@ -225,8 +226,8 @@ class TV_Reco():
             # u_vec = np.concatenate([u, v])
 
             tau_new = tau_old*(1+theta)**0.5
-            print("new tau")
-            print("Tau_n:", tau_new)
+            #print("new tau")
+            #print("Tau_n:", tau_new)
 
 
 
@@ -246,17 +247,17 @@ class TV_Reco():
                 kTy_new = k.T @ p_new + Aconj_r
                 y_new = np.concatenate([p_new, r_new])
 
-                print("calculate norm")
+                #print("calculate norm")
                 LS = np.sqrt(beta)*tau_new*(np.linalg.norm(kTy_new - kTy_old))
                 RS = delta*(np.linalg.norm(y_new - y_old))
-                print("LS is:", LS)
-                print("RS is:", RS)
+                #print("LS is:", LS)
+                #print("RS is:", RS)
                 if  LS <= RS:
-                    print("Break Linesearch")
+                    #print("Break Linesearch")
                     break
                 else: tau_new = tau_new * mu
-                print("reduce tau")
-                print("Tau_n:", tau_new)
+                #print("reduce tau")
+                #print("Tau_n:", tau_new)
 
             # update variables
             u_old = u_new

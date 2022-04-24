@@ -190,6 +190,7 @@ class TGV_Denoise():
         # @ is matrix multiplication of 2 variables
 
         for it in range(0, iterations):
+            print("iterations: " + str(it))
             # To calculate the data term projection you can use:
             # prox_sum_l1(x, f, tau, Wis)
             # where x is the parameter of the projection function i.e. u^(n+(1/2))
@@ -199,8 +200,8 @@ class TGV_Denoise():
             x_vec_new = np.concatenate([u_new, v_new])
 
             tau_new = tau_old*(1+theta)**0.5
-            print("new tau")
-            print("Tau_n:", tau_new)
+            #print("new tau")
+            #print("Tau_n:", tau_new)
 
             while True:
                 theta = tau_new/tau_old
@@ -213,17 +214,17 @@ class TGV_Denoise():
                 y_vec_new = np.concatenate([p_new, q_new])
 
 
-                print("Denoise TGV: calculate norm")
+                #print("Denoise TGV: calculate norm")
                 LS = np.sqrt(beta)*tau_new*(np.linalg.norm(k.T@y_vec_new - k.T@y_vec_old))
                 RS = delta*(np.linalg.norm(y_vec_new - y_vec_old))
-                print("LS is:", LS, "and of type:", type(LS))
-                print("RS is:", RS, "and of type:", type(RS))
+                #print("LS is:", LS, "and of type:", type(LS))
+                #print("RS is:", RS, "and of type:", type(RS))
                 if  LS <= RS:
-                    print("Break Linesearch")
+                    #print("Break Linesearch")
                     break
                 else: tau_new = tau_new * mu
-                print("reduce tau")
-                print("Tau_n:", tau_new)
+                #print("reduce tau")
+                #print("Tau_n:", tau_new)
 
             # update variables
             x_vec_old = x_vec_new
