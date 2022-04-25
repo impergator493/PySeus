@@ -19,32 +19,42 @@ parent_path = "..\\..\\03_Daten\\Noise_generation\\Mario_Master"
 #                 "image_noise=0.1_gaussian.h5", "image_noise=0.1_rician.h5",
 #                 "image_noise=0.2_gaussian.h5", "image_noise=0.2_rician.h5"]
 
-file_paths_denoising = ["image_noise=0.05_gaussian.h5", "image_noise=0.05_rician.h5", 
-                "image_noise=0.1_gaussian.h5", "image_noise=0.1_rician.h5",
-                "image_noise=0.2_gaussian.h5", "image_noise=0.2_rician.h5"]
+file_paths_denoising = ["image_noise=0.1_gaussian.h5", "image_noise=0.1_rician.h5",
+"image_noise=0.1_gaussian.h5", "image_noise=0.1_rician.h5",
+"image_noise=0.1_gaussian.h5", "image_noise=0.1_rician.h5",
+"image_noise=0.2_gaussian.h5", "image_noise=0.2_rician.h5",
+"image_noise=0.2_gaussian.h5", "image_noise=0.2_rician.h5",
+"image_noise=0.2_gaussian.h5", "image_noise=0.2_rician.h5"]
 
-file_paths_denoising = []
 
-denoise_params = [(400, 2, 1, 10000), (400, 2, 1, 10000),
+#file_paths_denoising = []
+
+denoise_params = [(150, 2, 1, 10000), (150, 2, 1, 10000),
+                    (300, 2, 1, 10000), (300, 2, 1, 10000),
+                    (400, 2, 1, 10000), (400, 2, 1, 10000),
+                    (80, 2, 1, 10000), (80, 2, 1, 10000),
                     (200, 2, 1, 10000), (200, 2, 1, 10000),
-                    (100, 2, 1, 10000), (100, 2, 1, 10000)]
+                    (400, 2, 1, 10000), (400, 2, 1, 10000)]
 
 
 # file_paths_reconstruction = ["kspace_noise=0.05.h5", "kspace_noise=0.05_perc_ones_kspace=0.2.h5", "kspace_noise=0.05_perc_ones_kspace=0.6.h5", 
 #                 "kspace_noise=0.1.h5", "kspace_noise=0.1_perc_ones_kspace=0.2.h5", "kspace_noise=0.1_perc_ones_kspace=0.6.h5",
 #                 "kspace_noise=0.2.h5", "kspace_noise=0.2_perc_ones_kspace=0.2.h5", "kspace_noise=0.2_perc_ones_kspace=0.6.h5"]
 
-file_paths_reconstruction = ["kspace_noise=0.05_perc_ones_kspace=0.2.h5", "kspace_noise=0.05_perc_ones_kspace=0.6.h5", 
-                "kspace_noise=0.1_perc_ones_kspace=0.2.h5", "kspace_noise=0.1_perc_ones_kspace=0.6.h5",
-                "kspace_noise=0.2_perc_ones_kspace=0.2.h5", "kspace_noise=0.2_perc_ones_kspace=0.6.h5"]        
+file_paths_reconstruction = ["kspace_noise=0.05.h5", "kspace_noise=0.05_perc_ones_kspace=0.2.h5", "kspace_noise=0.05_perc_ones_kspace=0.6.h5", 
+                "kspace_noise=0.1.h5", "kspace_noise=0.1_perc_ones_kspace=0.2.h5", "kspace_noise=0.1_perc_ones_kspace=0.6.h5",
+                "kspace_noise=0.2.h5", "kspace_noise=0.2.h5", "kspace_noise=0.2_perc_ones_kspace=0.2.h5", "kspace_noise=0.2_perc_ones_kspace=0.6.h5"]
+    
 
-# reco_params = [(400, 10000), (400, 10000), (400, 10000),
-#                     (200, 10000), (200, 10000), (200, 10000),
-#                     (100, 10000), (100, 10000), (100, 10000)]
 
-reco_params = [(2000, 2, 1, 10000), (1500, 2, 1, 10000),
-                    (2000, 2, 1, 10000), (1500, 2, 1, 10000),
-                    (2000, 2, 1, 10000), (1500, 2, 1, 10000)]
+# reco_params = [(1000, 2, 1, 10000), (1000, 2, 1, 10000), (1000, 2, 1, 10000),
+#                     (1000, 2, 1, 10000), (1000, 2, 1, 10000), (1000, 2, 1, 10000),
+#                     (1000, 2, 1, 10000), (1000, 2, 1, 10000), (1000, 2, 1, 10000)]
+
+reco_params = [(2000, 2, 1, 10000), (3000, 2, 1, 10000), (2000, 2, 1, 10000),
+                    (2000, 2, 1, 10000), (3000, 2, 1, 10000), (2000, 2, 1, 10000),
+                    (2000, 2, 1, 10000), (500, 2, 1, 10000),  (1500, 2, 1, 10000), (800, 2, 1, 10000)]
+
 
 # print('\n')
 # print("Keys: ", list(f1.keys()))
@@ -53,7 +63,8 @@ reco_params = [(2000, 2, 1, 10000), (1500, 2, 1, 10000),
 
 
 
-
+print(len(file_paths_denoising))
+print(len(file_paths_reconstruction))
 # For denoising
 for i in range(len(file_paths_denoising)): 
 
