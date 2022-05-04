@@ -66,7 +66,7 @@ for i, file in enumerate(os.listdir(".")):
     if ".npy" in file and file.startswith("denoised"):
         files.append(file)
 
-fig, axs = plt.subplots(2,6, figsize= (40,15))
+fig, axs = plt.subplots(8,10, figsize= (60,40))
 fig.suptitle("Denoising")
 
 for i, file in enumerate(files):
@@ -81,10 +81,14 @@ for i, file in enumerate(files):
     # print(mse_t)
     # print(nrmse_t)
     # print(psnr_t)
-    
-    plt.subplot(2,6, i+1)
-    plt.title(str(file).replace('denoised_', '').replace('.npy', '') + "\n" + ssim_t + "\n" + mse_t + "\n" + nrmse_t + "\n" + psnr_t , fontsize=size_letters)
+    plt.subplot(8,10, i+1)
+    #plt.title(str(file).replace('denoised_', '').replace('.npy', '') + "\n" + ssim_t + "\n" + mse_t + "\n" + nrmse_t + "\n" + psnr_t , fontsize=size_letters)
+    plt.subplots_adjust(left=0.03, right=0.97, bottom= 0.03, top= 0.9, wspace=0.2, hspace = 0.5)
+    plt.title(str(file).replace('denoised_', '').replace('.npy', '').replace('_image','').replace(', 10000','') + "\n" + ssim_t + "\n" + nrmse_t, fontsize=size_letters)
     plt.imshow(proc_img, cmap='gray')
+    plt.axis('off')
+
+
 
 # Reconstruction
 files = []
@@ -93,7 +97,7 @@ for i, file in enumerate(os.listdir(".")):
         files.append(file)
 
 
-fig, axs = plt.subplots(2,15, figsize= (100, 30))
+fig, axs = plt.subplots(6,9, figsize= (100, 30))
 fig.suptitle("Reconstructed")
 
 for i, file in enumerate(files):
@@ -109,15 +113,16 @@ for i, file in enumerate(files):
     # print(nrmse_t)
     # print(psnr_t)
     
-    plt.subplot(2,15, i+1)
-    plt.subplots_adjust(left=0.03, right=0.97, bottom= 0.03, top= 0.9, wspace=0.6, hspace = 0.42)
-    #plt.title(str(file).replace('reconstructed_', '').replace('.npy','').replace('kspace_','') + "\n" + ssim_t, fontsize=size_letters)
-    plt.title(str(file).replace('reconstructed_', '').replace('.npy','').replace('_kspace','').replace('_ones','') + "\n" + ssim_t + "\n" + mse_t + "\n" + nrmse_t + "\n" + psnr_t , fontsize=size_letters)
+    plt.subplot(6,9, i+1)
+    plt.subplots_adjust(left=0.03, right=0.97, bottom= 0.03, top= 0.9, wspace=0.2, hspace = 0.2)
+    plt.title(str(file).replace('reconstructed_', '').replace('.npy','').replace('_kspace','').replace('_ones','').replace('2, 1,','').replace(' 10000','') + "\n" + ssim_t + "\n" + nrmse_t, fontsize=size_letters)
+    #plt.title(str(file).replace('reconstructed_', '').replace('.npy','').replace('_kspace','').replace('_ones','') + "\n" + ssim_t + "\n" + mse_t + "\n" + nrmse_t + "\n" + psnr_t , fontsize=size_letters)
     plt.imshow(abs(np.load(file)), cmap='gray')
+    plt.axis('off')
 
 
 #plt.tight_layout()
-plt.subplot_tool()
+#plt.subplot_tool()
 plt.show()
 
 

@@ -1,5 +1,3 @@
-# Assignment from Image Processing, taken from there
-
 from re import U
 import matplotlib.pyplot as plt
 import numpy as np
@@ -8,7 +6,9 @@ import scipy.sparse as sp
 
 from ..settings import ProcessSelDataType
 
-# @TODO: womöglich als methode in TV klasse inkludieren?
+from memory_profiler import profile
+
+
 class TV_Denoise(): 
 
 
@@ -17,9 +17,7 @@ class TV_Denoise():
         self.h_inv = 1.0
         self.hz_inv = 1.0
 
-         # Lipschitz constant of K, according to knoll paper TGV reco and denoising, with iso spacing for x and y
-        #self.lip_inv = np.sqrt((2*(1/self.h_inv)**2)/(16+(1/self.h_inv)**2+np.sqrt(32*(1/self.h_inv)**2+(1/self.h_inv)**4)))
-        self.lip_inv = 10
+        self.tau_init = 10
     
 
     def _make_nabla(self,L, M, N):
@@ -52,11 +50,7 @@ class TV_Denoise():
         return nabla, nabla_x, nabla_y, nabla_z
 
     def make_K(self, L, M, N):
-        """
-        @param M:
-        @param N:
-        @return: the K operator as described in Equation (5)
-        """
+
         nabla, nabla_x, nabla_y, nabla_z = self._make_nabla(L, M, N)
 
         K = sp.bmat([[nabla_x], [nabla_y], [nabla_z]])
@@ -79,12 +73,7 @@ class TV_Denoise():
 
 
     def proj_ball(self, Y):
-        """
-        Projection to a ball as described in Equation (6)
-        @param Y: either 2xMN or 4xMN
-        @param lamb: scalar hyperparameter lambda
-        @return: projection result either 2xMN or 4xMN
-        """
+
         norm = np.linalg.norm(Y, axis=0)
         projection = Y / np.maximum(1, norm)
     
@@ -131,12 +120,6 @@ class TV_Denoise():
 
 
     def tv_denoising_L1(self,img_noisy, lambd, iterations):
-        """
-        @param f: the K observations of shape MxNxK
-        @param alpha: tuple containing alpha1 and alpha2
-        @param maxit: maximum number of iterations
-        @return: tuple of u with shape MxN and v with shape 2xMxN
-        """
 
         # star argument to take really the value of the variable as argument
         # if 2dim noisy data make it a 3D array, if 3D just let it be
@@ -162,8 +145,8 @@ class TV_Denoise():
         p_old = np.zeros(3*L*M*N)
 
         # primal and dual step size
-        tau_old = self.lip_inv
-        sigma = self.lip_inv
+        tau_old = self.tau_init
+        sigma = self.tau_init
     
 
         # @ is matrix multiplication of 2 variables
@@ -231,8 +214,8 @@ class TV_Denoise():
         p_old = np.zeros(3*L*M*N)
 
         # primal and dual step size
-        tau_old = self.lip_inv
-        sigma = self.lip_inv    
+        tau_old = self.tau_init
+        sigma = self.tau_init    
 
         
         # @ is matrix multiplication of 2 variables
@@ -278,6 +261,7 @@ class TV_Denoise():
         
         return u_new
 
+    @profile
     def tv_denoising_L2(self,img_noisy, lambd, iterations):
 
         # Parameters
@@ -300,8 +284,8 @@ class TV_Denoise():
         p_old = np.zeros(3*L*M*N)
 
         # primal and dual step size
-        tau_old = self.lip_inv
-        sigma = self.lip_inv
+        tau_old = self.tau_init
+        sigma = self.tau_init
     
 
         

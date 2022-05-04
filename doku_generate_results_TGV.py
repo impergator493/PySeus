@@ -9,6 +9,8 @@ import numpy as np
 import matplotlib.pyplot as plt  
 import scipy.io
 import os 
+import time
+import tracemalloc
 
 
 
@@ -19,41 +21,34 @@ parent_path = "..\\..\\03_Daten\\Noise_generation\\Mario_Master"
 #                 "image_noise=0.1_gaussian.h5", "image_noise=0.1_rician.h5",
 #                 "image_noise=0.2_gaussian.h5", "image_noise=0.2_rician.h5"]
 
-file_paths_denoising = ["image_noise=0.1_gaussian.h5", "image_noise=0.1_rician.h5",
-"image_noise=0.1_gaussian.h5", "image_noise=0.1_rician.h5",
-"image_noise=0.1_gaussian.h5", "image_noise=0.1_rician.h5",
-"image_noise=0.2_gaussian.h5", "image_noise=0.2_rician.h5",
-"image_noise=0.2_gaussian.h5", "image_noise=0.2_rician.h5",
-"image_noise=0.2_gaussian.h5", "image_noise=0.2_rician.h5"]
+# file_paths_denoising = ["image_noise=0.1_gaussian.h5", "image_noise=0.1_rician.h5",
+# "image_noise=0.1_gaussian.h5", "image_noise=0.1_rician.h5",
+# "image_noise=0.1_gaussian.h5", "image_noise=0.1_rician.h5",
+# "image_noise=0.2_gaussian.h5", "image_noise=0.2_rician.h5",
+# "image_noise=0.2_gaussian.h5", "image_noise=0.2_rician.h5",
+# "image_noise=0.2_gaussian.h5", "image_noise=0.2_rician.h5"]
 
+file_paths_denoising = ["image_noise=0.1_gaussian.h5"]
 
 #file_paths_denoising = []
 
-denoise_params = [(150, 2, 1, 10000), (150, 2, 1, 10000),
-                    (300, 2, 1, 10000), (300, 2, 1, 10000),
-                    (400, 2, 1, 10000), (400, 2, 1, 10000),
-                    (80, 2, 1, 10000), (80, 2, 1, 10000),
-                    (200, 2, 1, 10000), (200, 2, 1, 10000),
-                    (400, 2, 1, 10000), (400, 2, 1, 10000)]
+denoise_params = [(400, 2, 1, 10000)]
 
 
 # file_paths_reconstruction = ["kspace_noise=0.05.h5", "kspace_noise=0.05_perc_ones_kspace=0.2.h5", "kspace_noise=0.05_perc_ones_kspace=0.6.h5", 
 #                 "kspace_noise=0.1.h5", "kspace_noise=0.1_perc_ones_kspace=0.2.h5", "kspace_noise=0.1_perc_ones_kspace=0.6.h5",
 #                 "kspace_noise=0.2.h5", "kspace_noise=0.2_perc_ones_kspace=0.2.h5", "kspace_noise=0.2_perc_ones_kspace=0.6.h5"]
 
-file_paths_reconstruction = ["kspace_noise=0.05.h5", "kspace_noise=0.05_perc_ones_kspace=0.2.h5", "kspace_noise=0.05_perc_ones_kspace=0.6.h5", 
-                "kspace_noise=0.1.h5", "kspace_noise=0.1_perc_ones_kspace=0.2.h5", "kspace_noise=0.1_perc_ones_kspace=0.6.h5",
-                "kspace_noise=0.2.h5", "kspace_noise=0.2.h5", "kspace_noise=0.2_perc_ones_kspace=0.2.h5", "kspace_noise=0.2_perc_ones_kspace=0.6.h5"]
-    
+#file_paths_reconstruction = ["kspace_noise=0.05.h5"]
+
+file_paths_reconstruction = []   
 
 
 # reco_params = [(1000, 2, 1, 10000), (1000, 2, 1, 10000), (1000, 2, 1, 10000),
 #                     (1000, 2, 1, 10000), (1000, 2, 1, 10000), (1000, 2, 1, 10000),
 #                     (1000, 2, 1, 10000), (1000, 2, 1, 10000), (1000, 2, 1, 10000)]
 
-reco_params = [(2000, 2, 1, 10000), (3000, 2, 1, 10000), (2000, 2, 1, 10000),
-                    (2000, 2, 1, 10000), (3000, 2, 1, 10000), (2000, 2, 1, 10000),
-                    (2000, 2, 1, 10000), (500, 2, 1, 10000),  (1500, 2, 1, 10000), (800, 2, 1, 10000)]
+reco_params = [(2000, 2, 1, 10000)]
 
 
 # print('\n')
@@ -80,7 +75,13 @@ for i in range(len(file_paths_denoising)):
 
     #for tv: first argument in method
     #obj.tv_l2_reconstruction_gen
+    tracemalloc.start()
+    start_time = time.time()
     denoised_data = obj.tgv2_denoising_gen(0, img_data, denoise_params[i], (1.0, 1.0))
+    print("TGV Denoising time: " + str(time.time() - start_time))
+    print("TGV Denoising memory: " + str(tracemalloc.get_traced_memory()))
+    tracemalloc.stop()
+
 
     denoised_path = "denoised_TGV_" + file_paths_denoising[i] + "_" + str(denoise_params[i]) + ".npy"
     save_path = os.path.join(parent_path, denoised_path)
@@ -89,7 +90,7 @@ for i in range(len(file_paths_denoising)):
         np.save(file,denoised_data)
     
 
-
+#time.sleep(10)
 # For reco
 for i in range(len(file_paths_reconstruction)): 
 
@@ -107,7 +108,13 @@ for i in range(len(file_paths_reconstruction)):
 
     #for tv: first argument in method
     #obj.tv_l2_reconstruction_gen
+    tracemalloc.start()
+    start_time = time.time()
     reco_data = obj.tgv2_reconstruction_gen(0, raw_data, coils, reco_params[i], (1.0, 1.0))
+    print("TGV Reconstruction time: " + str(time.time() - start_time))
+    print("TGV Reconstruction memory: " + str(tracemalloc.get_traced_memory()))
+    tracemalloc.stop()
+
 
     reco_path = "reconstructed_TGV_" + file_paths_reconstruction[i] + "_" + str(reco_params[i]) + ".npy"
     save_path = os.path.join(parent_path, reco_path)

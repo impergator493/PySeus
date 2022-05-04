@@ -213,12 +213,12 @@ class MainWindow(QMainWindow):  # pylint: disable=R0902
     def _action_save(self):
         
         path,_ = QFileDialog.getSaveFileName(None, "Save dataset",
-                                            self._open_path, "*.*")
+                                            self._open_path, "*.npy")
 
         with open(path,'wb') as file:
             numpy.save(file,self.app.dataset.get_pixeldata())
         
-
+        
     def _action_reload(self):
         if self.app.dataset is not None:
             data_type = self.app.dataset.get_data_type()

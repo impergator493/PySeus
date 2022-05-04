@@ -1,14 +1,11 @@
-# Assignment from Image Processing, taken from there
-# plus changes to TGV-L2 according Knoll stollberger paper
-# main algorithmen is from homework, not from knoll paper (problem with u = u -tau*(), in paper there is u + tau*())
-
 import numpy as np
 import scipy
 import scipy.sparse as sp
 
 from ..settings import ProcessSelDataType
 
-# @TODO: womöglich als methode in TV klasse inkludieren?
+from memory_profiler import profile
+
 class TGV_Reco(): 
 
 
@@ -18,13 +15,8 @@ class TGV_Reco():
         self.h_inv = 1.0
         self.hz_inv = 1.0
 
-         # Lipschitz constant of K, according to papers ok, aber beim probieren ist es eigentlich zu klein.
-        #self.lip_inv = np.sqrt((2*(1/self.h_inv)**2)/(16+(1/self.h_inv)**2+np.sqrt(32*(1/self.h_inv)**2+(1/self.h_inv)**4)))
-        self.lip_inv = 10
-        #self.lip_inv = np.sqrt(1/64)
-        #self.lip_inv = np.sqrt(1/12)
+        self.tau_init = 10
 
-        # dimension for which the fft and ifft should be calculated, standard is 2D
         self.fft_dim = (-2,-1)
 
 
@@ -58,11 +50,7 @@ class TGV_Reco():
         return nabla, nabla_x, nabla_y, nabla_z
 
     def make_K(self, L, M, N):
-        """
-        @param M:
-        @param N:
-        @return: the K operator as described in Equation (5)
-        """
+
         nabla, nabla_x, nabla_y, nabla_z = self._make_nabla(L, M, N)
         neg_I = sp.identity(L*M*N) * -1
 
@@ -74,12 +62,7 @@ class TGV_Reco():
         return K
 
     def proj_ball(self, Y, alpha):
-        """
-        Projection to a ball as described in Equation (6)
-        @param Y: either 2xMN or 4xMN
-        @param alpha: scalar hyperparameter alpha
-        @return: projection result either 2xMN or 4xMN
-        """
+
         norm = np.linalg.norm(Y, axis=0)
         projection = Y / np.maximum(1, norm/alpha)
     
@@ -90,34 +73,21 @@ class TGV_Reco():
         return (r*lambd)/(lambd + sigma) # this is from knoll stollberger tgv paper
 
  
-    #@TODO temporarily absolute value of coils sensitivities just for trying
     def op_A(self, u, sens_c, sparse_mask):
-        """
-        input parameter:
 
-        u - current reconstructed sample in spatial domain, size (L,M,N)
-        sens_c - coil sensitivities 
-        """
         return sparse_mask * np.fft.fftn((sens_c * u), axes=self.fft_dim, norm='ortho')
 
 
         
-    #@TODO temporaril absolute value of coils sensitivities just for trying
     def op_A_conj(self, r, sens_c, sparse_mask):
 
-        """
-        input parameter:
-
-        R - dual variable of difference of current reconstructed sample u(n) in fourier domain and initial fourier data
-        """
         
         r_IFT = sens_c.conjugate() * np.fft.ifftn(r*sparse_mask,axes=self.fft_dim, norm='ortho')
 
         
         return np.sum( r_IFT, axis=0)
 
-   # if its a big dataset, a lot of RAM is needed because all the raw data to process will be 
-    # stored in the RAM
+
     def tgv2_reconstruction_gen(self, dataset_type, data_raw, data_coils, params, spac):
 
         self.h_inv = spac[0]
@@ -126,9 +96,7 @@ class TGV_Reco():
         sparse_mask = (data_raw!=0)
 
         if dataset_type == ProcessSelDataType.SLICE_2D:
-            # Because of Coil data, correct slice has to be select with L=1 already when method is called
-            # dat_real, imag are of dimension (C*L*M*N), if 2D with 3.Dim L is just length 1
-            # make return value 2D array again
+
             dataset_denoised = self.tgv2_reconstruction(data_raw, data_coils, sparse_mask, *params)[0,:,:]
 
             return dataset_denoised
@@ -152,14 +120,8 @@ class TGV_Reco():
         else:
             raise TypeError("Dataset must be either 2D or 3D and matching the correct dataset type")
         
-
+    @profile
     def tgv2_reconstruction(self, img_kspace, sens_coils, sparse_mask, lambd, alpha0, alpha1, iterations):
-        """
-        @param f: the K observations of shape MxNxK
-        @param alpha: tuple containing alpha1 and alpha2
-        @param maxit: maximum number of iterations
-        @return: tuple of u with shape MxN and v with shape 2xMxN
-        """
 
 
         # Parameters
@@ -168,48 +130,41 @@ class TGV_Reco():
         mu = 0.5
         delta = 0.99
 
-        # d is the variable which contains all the k-space data for the sample for all coils
-        # and has dimension Nc*Nz*Ny*Nx
-        # normed to 1, can be removed to see if it changes anything
+
         d = img_kspace/np.linalg.norm(img_kspace)
 
-        # C is number of coils, L,M,N are the length of the 3D dimensions
         C, L, M, N = d.shape
         
         # make operators
         k = self.make_K(L,M,N)
        
         # initialize primal variables - numpy arrays shape (L*M*N, )
-        u_old = np.zeros(L*M*N, dtype=np.complex128)
-        v_old = np.zeros(3*L*M*N, dtype=np.complex128)
+        u_old = np.zeros(L*M*N, dtype=np.complex)
+        v_old = np.zeros(3*L*M*N, dtype=np.complex)
 
-        #@TODO change p,q to z1 z2
         # initialize dual variables
-        p_old = np.zeros(3*L*M*N, dtype=np.complex128)
-        q_old = np.zeros(9*L*M*N, dtype=np.complex128)
-        r_old = np.zeros(C*L*M*N, dtype=np.complex128)
+        p_old = np.zeros(3*L*M*N, dtype=np.complex)
+        q_old = np.zeros(9*L*M*N, dtype=np.complex)
+        r_old = np.zeros(C*L*M*N, dtype=np.complex)
 
 
         # primal and dual step size
-        tau_old = self.lip_inv
-        sigma = self.lip_inv
+        tau_old = self.tau_init
+        sigma = self.tau_init
 
         x_old = np.concatenate([u_old, v_old])
         pq_old = np.concatenate([p_old, q_old])
-        y_old = np.zeros((3+9+C)*L*M*N, dtype=np.complex128)
-        kTy_old = np.zeros_like(x_old, dtype=np.complex128)
+        y_old = np.zeros((3+9+C)*L*M*N, dtype=np.complex)
+        kTy_old = np.zeros_like(x_old, dtype=np.complex)
 
             
 
         # temp vector for DAH*r 
-        Aconj_r = np.zeros_like(x_old, dtype=np.complex128)
+        Aconj_r = np.zeros_like(x_old, dtype=np.complex)
 
-        # @ is matrix multiplication of 2 variables
 
         for it in range(0, iterations):
-            # To calculate the data term projection you can use:
-            # prox_sum_l1(x, f, tau, Wis)
-            # where x is the parameter of the projection function i.e. u^(n+(1/2))
+
             print("iterations: " + str(it))
 
             #add result of DAHr only to first L*M*N entries, because they belong to the u_vec , v_vec should not be influenced
@@ -217,11 +172,9 @@ class TGV_Reco():
             
             # prox for u not necessary
             x_new = x_old - tau_old * (k.T @ pq_old + Aconj_r)
-            #u = x_new[0:L*M*N]
 
             tau_new = tau_old*(1+theta)**0.5
-            #print("new tau")
-            #print("Tau_n:", tau_new)
+
             
             while True:
                 theta = tau_new/tau_old
@@ -229,9 +182,9 @@ class TGV_Reco():
                 x_bar = x_new + theta * (x_new - x_old)
 
                 pq_temp = pq_old + sigma*k@(x_bar)
-                p = np.ravel(self.proj_ball(pq_temp[0:3*L*M*N].reshape(3, L*M*N), alpha1))
-                q = np.ravel(self.proj_ball(pq_temp[3*L*M*N:12*L*M*N].reshape(9, L*M*N), alpha0))
-                pq_new = np.concatenate([p, q])
+                p_new = np.ravel(self.proj_ball(pq_temp[0:3*L*M*N].reshape(3, L*M*N), alpha1))
+                q_new = np.ravel(self.proj_ball(pq_temp[3*L*M*N:12*L*M*N].reshape(9, L*M*N), alpha0))
+                pq_new = np.concatenate([p_new, q_new])
                 r_temp = r_old + np.ravel(sigma*(self.op_A(x_bar[0:L*M*N].reshape(L,M,N), sens_coils, sparse_mask)-d))
                 r_new = np.ravel(self.prox_F(r_temp, sigma, lambd))
 
@@ -239,18 +192,14 @@ class TGV_Reco():
                 kTy_new = k.T@pq_new + Aconj_r
                 y_new = np.concatenate([pq_new, r_new])
 
-                #print("TGV")
-                #print("calculate norm")
+
                 LS = np.sqrt(beta)*tau_new*(np.linalg.norm(kTy_new - kTy_old))
                 RS = delta*(np.linalg.norm(y_new - y_old))
-                #print("LS is:", LS)
-                #print("RS is:", RS)
+
                 if  LS <= RS:
-                    #print("Update tau!")
                     break
                 else: tau_new = tau_new * mu
-                #print("reduce tau")
-                #print("Tau_n:", tau_new)
+
 
             # update variables
             x_old = x_new

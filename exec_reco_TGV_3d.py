@@ -7,10 +7,15 @@ import numpy as np
 import matplotlib.pyplot as plt  
 import scipy.io
 
+from PySide2.QtWidgets import QButtonGroup, QDialog, QDialogButtonBox, QFormLayout, QLineEdit, QMainWindow, QAction, QLabel, QFileDialog, \
+                              QFrame, QPushButton, QRadioButton, QVBoxLayout, QHBoxLayout, QWidget
+from PySide2.QtWidgets import QApplication, QMessageBox, QWidget
+
+
 # f1 = h5py.File("..\\..\\03_Daten\\fourier_data_reconstruction\\prob01.h5")
 #mit dem folgenden file gehts sicher
 #f1 = h5py.File("..\\..\\03_Daten\\fourier_data_reconstruction\\VFA_test_cart.h5")      
-f1 = h5py.File("..\\..\\03_Daten\\Noise_generation\\Mario_Master\\VFA_img_noise=0.1_alpha=9_fft_under60_noise.h5")      
+f1 = h5py.File("..\\..\\03_Daten\\Noise_generation\\Mario_Master\\kspace_noise=0.2.h5")      
 print('\n')
 print("Keys: ", list(f1.keys()))
 print("Attributes: ", dict(f1.attrs))
@@ -28,6 +33,7 @@ coils = f1['Coils'][:,100:101,:,:]
 
 #np.save('data_3D', raw_data)
 #np.save('coil_3D', coils)
+
 
 
 data_size = raw_data.shape[-3:]

@@ -56,8 +56,6 @@ class PySeus():  # pylint: disable=R0902
         """The current dataset object.
         See `Formats <formats.html>`_."""
 
-        # M: @TODO object is not implemented like for dataset, Denoising HTML file is still missing
-        # Is this variable neccessary?
         self.dataset_processed = None
         """The temporary processed dataset.
         """
@@ -184,9 +182,7 @@ class PySeus():  # pylint: disable=R0902
         """Refresh the displayed image."""
         if self.slice == -1:
             return
-        # M: thats always a raw 2D picture, apart from giving no self.slice value than its 3D, but 3D cannot be displayed -> return
         data = self.dataset.get_pixeldata(self.slice)
-        # M: if the scaling was not proportional, the new size is calculated for stretch free representation, eg if it was rotated before
         # @TODO move to FormatBase (get_pixeldata_adjusted)
         spacing = self.dataset.get_spacing()
         if spacing[0] != spacing[1]:
@@ -196,7 +192,6 @@ class PySeus():  # pylint: disable=R0902
             else:
                 size = (int(data.shape[0]),
                         int(data.shape[1]*spacing[1]/spacing[0]))
-            # M: scales the image with factors of spacing given abouve, size var really holds the abs. pixelsize of the new image
             data = cv2.resize(data, size)
 
         pixmap = self.mode.get_pixmap(data)
@@ -284,24 +279,7 @@ class PySeus():  # pylint: disable=R0902
         """Save processed data in Dataset after confirmation in ProcessDialog."""
 
         if self.data_type == DataType.IMAGE:
-            # #TODO: that should be changed, thats just for temporary fitting data into a dataset which similar to the processed data
-            # # if a processed 2D image is put back in a 3D dataset, bc all the 3D data has the same display window with values for black and white
-            # # use this case just for denoising?
-            # if dataset.ndim == 2:
-            #     slice_id = self.slice
 
-            #     old_min, old_max = self.dataset.get_minmax_pixeldata(slice_id)
-            #     dataset -= (numpy.min(dataset) - old_min)
-            #     dataset *= (old_max / numpy.max(dataset))
-            #     self.dataset.set_pixeldata(dataset, slice_id)
-            # # for 3D data, the window just needs to be setup for the new values.
-            # elif dataset.ndim == 3:
-            #     slice_id = -1
-            #     self.dataset.set_pixeldata(dataset, slice_id)
-            #     self._set_slice(self.dataset.slice_count() // 2)
-            #     self.mode.setup_window(self.dataset.get_pixeldata())
-            # else:
-            #     return
 
             self.load_data(dataset, DataType.IMAGE)
 

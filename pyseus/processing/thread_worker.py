@@ -6,9 +6,6 @@ from pyseus.processing.tgv_reconstruction import TGV_Reco
 from pyseus.processing.tv_reconstruction import TV_Reco
 
 
-# One could remove TV Class here and pass to init function also the denoise_gen itself 
-# if this class shouldnt import TV and be retained as generic
-
 class Worker(QObject):
     output = Signal(numpy.ndarray)
     
@@ -27,7 +24,6 @@ class Worker(QObject):
     
     # cannot pass arguments to run, but to the constructor of the class 
     def run(self):
-        # *args: Passing a Function Using with an arbitrary number of positional argument
         # denoising
         if isinstance(self.tv_class,TV_Denoise):
             self.data_processed = self.tv_class.tv_denoising_gen(self.tv_function, self.dataset_type, self.dataset, self.params, self.spac)

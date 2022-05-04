@@ -48,7 +48,6 @@ class ProcessDialog(QDialog):
         self.grp_data_sel.addButton(self.btn_curr_slice,ProcessSelDataType.SLICE_2D)
         self.grp_data_sel.addButton(self.btn_all_slices_2D,ProcessSelDataType.WHOLE_SCAN_2D)
         self.grp_data_sel.addButton(self.btn_all_slices_3D,ProcessSelDataType.WHOLE_SCAN_3D)
-        self.chbx_coil = QCheckBox("Use coil sensitivities")
 
         
         # subgroup of radio buttons to dataset selection
@@ -67,7 +66,6 @@ class ProcessDialog(QDialog):
         vlayout_sel.addWidget(self.btn_all_slices_2D)
         if self.proc_type == ProcessType.RECONSTRUCTION:
             vlayout_sel.addWidget(self.btn_all_slices_3D)
-            vlayout_sel.addWidget(self.chbx_coil)
         grp_box_sel.setLayout(vlayout_sel)
 
         if self.proc_type == ProcessType.DENOISING:
@@ -78,7 +76,6 @@ class ProcessDialog(QDialog):
         grp_box_type.setLayout(vlayout_type)
 
         # form layout for parameter input for processing algorithm
-        
         vlayout_par = QVBoxLayout()
         vlayout_spac = QVBoxLayout()
         grp_box_par = QGroupBox("Parameters")
@@ -143,7 +140,6 @@ class ProcessDialog(QDialog):
         v_form_spac.addRow("h_z inverted",self.qline_hz_inv)
 
 
-        # function without brackets just connects the function, but does not call it
         self.box_btns = QDialogButtonBox()
         self.box_btns.setStandardButtons(QDialogButtonBox.Cancel | QDialogButtonBox.Ok)
         self.box_btns.accepted.connect(self.signal_ok)
@@ -170,7 +166,6 @@ class ProcessDialog(QDialog):
 
         
         self.setLayout(vlayout_all)
-        #dialog.setStyleSheet('color: white')
         self.setStyleSheet("QLineEdit"
                                     "{"
                                     "color: white; background : darkgray;"
@@ -196,7 +191,6 @@ class ProcessDialog(QDialog):
 
     def signal_ok(self):
         
-        # @TODO check wether input types are okay
         alpha = float(self.qline_alpha.text())
         alpha0 = float(self.qline_alpha0.text())
         alpha1 = float(self.qline_alpha1.text())
@@ -206,13 +200,10 @@ class ProcessDialog(QDialog):
         h_iso_inv = float(self.qline_hiso_inv.text())
         h_z_inv = float(self.qline_hz_inv.text())
 
-        #according to definition in init method, 1 = 2D, 2 = 2D - whole dataset, 3 = 3D - whole Dataset
         dataset_type = ProcessSelDataType(self.grp_data_sel.checkedId())
         tv_type = ProcessRegType(self.grp_tv_type.checkedId())
 
-        use_coilmap = self.chbx_coil.isChecked()
-
-        self.window_processed.start_calculation(alpha, alpha0, alpha1, lambd, iterations, h_iso_inv, h_z_inv, dataset_type,tv_type, use_coilmap)
+        self.window_processed.start_calculation(alpha, alpha0, alpha1, lambd, iterations, h_iso_inv, h_z_inv, dataset_type,tv_type)
 
 
 class ProcessedWindow(QDialog):
@@ -259,10 +250,8 @@ class ProcessedWindow(QDialog):
 
         self.processed = data_obj
 
-        #TODO Remove fixed slice id
         if self.dataset_type == ProcessSelDataType.WHOLE_SCAN_2D or self.dataset_type == ProcessSelDataType.WHOLE_SCAN_3D :
-            #self.slice_id_selected = (self.app.dataset.slice_count() // 2)
-            self.slice_id_selected = 3
+            self.slice_id_selected = (self.app.dataset.slice_count() // 2)
             processed_displayed = self.processed[self.slice_id_selected,:,:]
         elif self.dataset_type == ProcessSelDataType.SLICE_2D:
             processed_displayed = self.processed
@@ -272,7 +261,7 @@ class ProcessedWindow(QDialog):
        
     
 
-    def start_calculation(self,alpha, alpha0, alpha1, lambd,iterations, hiso_inv, hz_inv, dataset_type, tv_type, use_coilmap):
+    def start_calculation(self,alpha, alpha0, alpha1, lambd,iterations, hiso_inv, hz_inv, dataset_type, tv_type):
 
         self.dataset_type = dataset_type
 
@@ -312,9 +301,6 @@ class ProcessedWindow(QDialog):
                 self.worker.output.connect(self.calculation_callback)
                 self.thread.start()
 
-            # self.thread = ProcessThread(self, tv_class, tv_type_func, dataset_type, dataset_noisy, params, spac)
-            # self.thread.output.connect(self.calculation_callback)
-            # self.thread.start()
         
         elif self.proc_type == ProcessType.RECONSTRUCTION:
             
@@ -324,22 +310,12 @@ class ProcessedWindow(QDialog):
 
             scan_id = self.app.dataset.scan
             slice_id = self.app.get_slice_id()
-            #@TODO: Remove selection for specific Slices again, just to see if it works in general
             if self.dataset_type == ProcessSelDataType.WHOLE_SCAN_2D or self.dataset_type == ProcessSelDataType.WHOLE_SCAN_3D:
-                dataset_kspace = self.app.dataset.get_reco_pixeldata(scan_id, -1)[:,69:75,:,:]#dataset_noisy = self.app.dataset.get_pixeldata(-1)
+                dataset_kspace = self.app.dataset.get_reco_pixeldata(scan_id, -1)#dataset_noisy = self.app.dataset.get_pixeldata(-1)
+                data_coils = self.app.dataset.get_coil_data(-1)           
             elif self.dataset_type == ProcessSelDataType.SLICE_2D:
                 dataset_kspace = self.app.dataset.get_reco_pixeldata(scan_id, slice_id)#dataset_noisy = self.app.dataset.get_pixeldata(self.app.get_slice_id())
-
-            data_coils = numpy.ones_like(dataset_kspace)
-
-
-            # if no sensitivity map is given, the whole array contains 1
-            if use_coilmap:
-                if self.dataset_type == ProcessSelDataType.WHOLE_SCAN_2D or self.dataset_type == ProcessSelDataType.WHOLE_SCAN_3D:
-                    #@TODO Remove selection for specific slices later again
-                    data_coils = self.app.dataset.get_coil_data(-1)[:,69:75,:,:]
-                elif self.dataset_type == ProcessSelDataType.SLICE_2D:
-                    data_coils = self.app.dataset.get_coil_data(slice_id)
+                data_coils = self.app.dataset.get_coil_data(slice_id)
 
             
             if tv_type == ProcessRegType.TV_L2:
@@ -362,16 +338,6 @@ class ProcessedWindow(QDialog):
                 self.worker.output.connect(self.calculation_callback)
                 self.thread.start()
 
-            # thread_processed = ProcessThread(self,tv_class, tv_type_func, dataset_type, dataset_kspace, params, spac, sparse_mask, data_coils)
-            # thread_processed.output.connect(self.calculation_callback)
-            # thread_processed.start()
-
-            
-
-        # Threading
-        # should be done with .start() method, not with run
-        # otherwhise threading wont be activated
-        
     def display_image(self, image):
         
         self.mode.temporary_window(image)
@@ -382,7 +348,6 @@ class ProcessedWindow(QDialog):
         self.resize(screen_size.width()*0.3, screen_size.height()*0.3)
         self.view.zoom_fit()
 
-     
     def refresh_slice(self, slice_inc):
         
         if self.dataset_type == ProcessSelDataType.WHOLE_SCAN_2D or self.dataset_type == ProcessSelDataType.WHOLE_SCAN_3D:
@@ -411,7 +376,6 @@ class ProcessedWindow(QDialog):
 class ProcessedViewWidget(QScrollArea):
     """Widget providing an interactive viewport."""
 
-    # @TODO app is obsolete here, generate new class
     def __init__(self, app, dialog):
         QScrollArea.__init__(self)
         self.app = app
@@ -480,7 +444,6 @@ class ProcessedViewWidget(QScrollArea):
         h_zoom = viewport.width() / image.width()
         self.zoom(min(v_zoom, h_zoom)*0.99, False)
 
-    #This is a basic event handler which can be reimplemented in every widget class to receive wheel commands.
     def wheelEvent(self, event):  # pylint: disable=C0103
         """Handle scroll wheel events in the viewport.
         Scroll - Change current slice up or down."""
