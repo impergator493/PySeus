@@ -16,7 +16,7 @@ from skimage.metrics import peak_signal_noise_ratio as psnr
 
 
 
-parent_path = "..\\..\\03_Daten\\Noise_generation\\Mario_Master"
+parent_path = "..\\..\\03_Daten\\Noise_generation\\Mario_Master\\"
 file_paths_denoising = ["image_noise=0.05_gaussian.h5", "image_noise=0.05_rician.h5", 
                 "image_noise=0.1_gaussian.h5", "image_noise=0.1_rician.h5",
                 "image_noise=0.2_gaussian.h5", "image_noise=0.2_rician.h5"]
@@ -39,7 +39,7 @@ reco_params = [(400, 10000), (400, 10000), (400, 10000),
 # print("Attributes: ", dict(f1.attrs))
 # Inhalt der Attribute
 
-# os.listdir()
+#print(os.listdir())
 os.chdir(parent_path)
 size_letters = 7
 
@@ -47,18 +47,27 @@ ref_img = np.ndarray.astype(h5py.File("image_noise=0.05_gaussian.h5")['ref_image
 ref_img_gaussian = np.ndarray.astype(h5py.File("image_noise=0.2_gaussian.h5")['img_dat'][0][108], dtype=np.float64)
 ref_img_rician = np.ndarray.astype(h5py.File("image_noise=0.2_rician.h5")['img_dat'][0][108], dtype=np.float64)
 
-fig, axs = plt.subplots(1,3)
+fig, axs = plt.subplots(3,2)
 fig.suptitle("Comparison original, gaussian, rician images")
-plt.subplot(1,3,1)
+plt.subplot(3,2,1)
 plt.imshow(ref_img, cmap='gray')
-plt.subplot(1,3,2)
+plt.subplot(3,2,2)
 plt.imshow(ref_img_gaussian, cmap='gray')
-plt.subplot(1,3,3)
+plt.subplot(3,2,3)
 plt.imshow(ref_img_rician, cmap='gray')
+plt.subplot(3,2,4)
+plt.imshow(ref_img_rician, cmap='gray')
+plt.subplot(3,2,5)
+plt.imshow(ref_img_rician, cmap='gray')
+plt.subplot(3,2,6)
+plt.imshow(ref_img_rician, cmap='gray')
+plt.subplot_tool()
+
 
 mask = ref_img>0
 ref_img_sc = (ref_img - ref_img.min()) / (ref_img.max() - ref_img.min())
 
+os.chdir("doc_final_results\\")
 
 # Display all the results.
 files = []
@@ -66,7 +75,7 @@ for i, file in enumerate(os.listdir(".")):
     if ".npy" in file and file.startswith("denoised"):
         files.append(file)
 
-fig, axs = plt.subplots(8,10, figsize= (60,40))
+fig, axs = plt.subplots(3,4, figsize= (60,40))
 fig.suptitle("Denoising")
 
 for i, file in enumerate(files):
@@ -81,9 +90,9 @@ for i, file in enumerate(files):
     # print(mse_t)
     # print(nrmse_t)
     # print(psnr_t)
-    plt.subplot(8,10, i+1)
+    plt.subplot(3,4, i+1)
     #plt.title(str(file).replace('denoised_', '').replace('.npy', '') + "\n" + ssim_t + "\n" + mse_t + "\n" + nrmse_t + "\n" + psnr_t , fontsize=size_letters)
-    plt.subplots_adjust(left=0.03, right=0.97, bottom= 0.03, top= 0.9, wspace=0.2, hspace = 0.5)
+    #plt.subplots_adjust(left=0.03, right=0.97, bottom= 0.03, top= 0.9, wspace=0.2, hspace = 0.5)
     plt.title(str(file).replace('denoised_', '').replace('.npy', '').replace('_image','').replace(', 10000','') + "\n" + ssim_t + "\n" + nrmse_t, fontsize=size_letters)
     plt.imshow(proc_img, cmap='gray')
     plt.axis('off')
@@ -97,7 +106,7 @@ for i, file in enumerate(os.listdir(".")):
         files.append(file)
 
 
-fig, axs = plt.subplots(6,9, figsize= (100, 30))
+fig, axs = plt.subplots(3,6, figsize= (100, 30))
 fig.suptitle("Reconstructed")
 
 for i, file in enumerate(files):
@@ -113,8 +122,8 @@ for i, file in enumerate(files):
     # print(nrmse_t)
     # print(psnr_t)
     
-    plt.subplot(6,9, i+1)
-    plt.subplots_adjust(left=0.03, right=0.97, bottom= 0.03, top= 0.9, wspace=0.2, hspace = 0.2)
+    plt.subplot(3,6, i+1)
+    #plt.subplots_adjust(left=0.03, right=0.97, bottom= 0.03, top= 0.9, wspace=0.2, hspace = 0.2)
     plt.title(str(file).replace('reconstructed_', '').replace('.npy','').replace('_kspace','').replace('_ones','').replace('2, 1,','').replace(' 10000','') + "\n" + ssim_t + "\n" + nrmse_t, fontsize=size_letters)
     #plt.title(str(file).replace('reconstructed_', '').replace('.npy','').replace('_kspace','').replace('_ones','') + "\n" + ssim_t + "\n" + mse_t + "\n" + nrmse_t + "\n" + psnr_t , fontsize=size_letters)
     plt.imshow(abs(np.load(file)), cmap='gray')
