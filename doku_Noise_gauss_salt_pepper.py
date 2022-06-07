@@ -19,7 +19,7 @@ sp_noise = random_noise(img_raw, mode='s&p',amount=0.3)
 gauss_noise = img_raw + gaussian
 rician_noise = abs(img_raw + rician)
 
-fig = plt.figure()
+fig = plt.figure(figsize=(9, 5))
 fig.suptitle("Noise histogram low SNR: S&P - Gaussian - Rician")
 plt.subplot(1,3,1)
 plt.hist((np.random.choice([0,1], size=(224, 224), p=[0.50, 0.50])).ravel())
@@ -32,7 +32,7 @@ plt.hist(abs(rician.ravel()), bins=256)
 plt.xlabel("Pixel intensity")
 plt.show()
 
-fig = plt.figure()
+fig = plt.figure(figsize=(9, 5))
 fig.suptitle("Noise histogram high SNR: S&P - Gaussian - Rician")
 plt.subplot(1,3,1)
 plt.hist(sp_noise.ravel())
